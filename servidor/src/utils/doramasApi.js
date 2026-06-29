@@ -2,9 +2,10 @@ const axios = require('axios');
 const https = require('https');
 const config = require('../config/env');
 
-const DEFAULT_URL = 'https://doraflix.fluxcedene.net/api/gql';
+/** API GraphQL usada por https://doramasflix.in/ (sv1.fluxcedene.net). */
+const DEFAULT_URL = 'https://sv1.fluxcedene.net/api/gql';
 
-/** La API rechaza Origin/Referer de doramasflix.co con 401. Solo headers mínimos. */
+/** No enviar Origin/Referer: la API devuelve 401 con cabeceras de sitio. */
 const GQL_HEADERS = {
   'Content-Type': 'application/json',
   Accept: 'application/json'

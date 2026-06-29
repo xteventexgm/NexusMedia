@@ -329,12 +329,9 @@ class DoramasFlix extends ProviderBase {
         else if (urlEpisodio.startsWith('episodio|')) {
             let slug = urlEpisodio.replace('episodio|', '');
 
-            if (slug.includes('doramasflix.co')) {
-                slug = slug.replace('https://doramasflix.co/', '')
-                           .replace('https://doramasflix.co', '')
-                           .replace('http://doramasflix.co/', '');
-            }
-            if (slug.startsWith('/')) slug = slug.substring(1);
+            slug = slug
+                .replace(/^https?:\/\/(www\.)?doramasflix\.(in|co)\/?/i, '')
+                .replace(/^\//, '');
 
             try {
                 const data = await gqlRequest({
