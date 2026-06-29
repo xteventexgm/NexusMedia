@@ -24,5 +24,8 @@ module.exports = {
   tvCacheTtlMs: parseInt(process.env.TV_CACHE_TTL_MS || String(12 * 60 * 60 * 1000), 10),
   doramasFlixApiUrl: process.env.DORAMASFLIX_API_URL || '',
   doramasFlixTimeoutMs: parseInt(process.env.DORAMASFLIX_TIMEOUT_MS || process.env.HTTP_TIMEOUT_MS || '30000', 10),
-  doramasFlixRetries: parseInt(process.env.DORAMASFLIX_RETRIES || '3', 10)
+  doramasFlixRetries: parseInt(process.env.DORAMASFLIX_RETRIES || '3', 10),
+  doramasFlixRelayUrl: process.env.DORAMASFLIX_RELAY_URL || '',
+  doramasFlixRelayKey: process.env.DORAMASFLIX_RELAY_KEY || process.env.DORAMAS_RELAY_KEY || '',
+  doramasRelayEnabled: process.env.DORAMAS_RELAY_ENABLED === 'true'
 };

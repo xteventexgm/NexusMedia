@@ -32,11 +32,11 @@ function resolveProxy() {
   }
 }
 
-function createClient() {
+function createClient(extraHeaders = {}) {
   const proxy = resolveProxy();
   return axios.create({
     timeout: config.doramasFlixTimeoutMs,
-    headers: { ...GQL_HEADERS },
+    headers: { ...GQL_HEADERS, ...extraHeaders },
     httpsAgent,
     proxy: proxy || false,
     maxRedirects: 5,
@@ -55,24 +55,23 @@ function formatError(err) {
   return [status ? `HTTP ${status}` : null, apiMsg, err.message].filter(Boolean).join(' — ');
 }
 
-/**
- * Petición GraphQL con reintentos en errores de red / 429 / 5xx.
- */
-async function gqlRequest(body, operationName = 'gql') {
-  const client = createClient();
-  const url = apiUrl();
+function validateGqlResponse(data) {
+  if (data?.errors?.length) {
+    throw new Error(data.errors.map((e) => e.message).join('; '));
+  }
+  if (data?.success === false) {
+    throw new Error(data.message || 'Respuesta rechazada por la API');
+  }
+  return data;
+}
+
+async function postWithRetries(client, url, body, operationName) {
   let lastError;
 
   for (let attempt = 1; attempt <= config.doramasFlixRetries; attempt++) {
     try {
       const { data } = await client.post(url, body);
-      if (data?.errors?.length) {
-        throw new Error(data.errors.map((e) => e.message).join('; '));
-      }
-      if (data?.success === false) {
-        throw new Error(data.message || 'Respuesta rechazada por la API');
-      }
-      return data;
+      return validateGqlResponse(data);
     } catch (err) {
       lastError = err;
       const status = err.response?.status;
@@ -91,4 +90,34 @@ async function gqlRequest(body, operationName = 'gql') {
   throw lastError;
 }
 
-module.exports = { gqlRequest, apiUrl, GQL_HEADERS };
+/** Petición directa a la API de DoramasFlix (IP local / no bloqueada). */
+async function directGqlRequest(body, operationName = 'gql') {
+  const client = createClient();
+  return postWithRetries(client, apiUrl(), body, operationName);
+}
+
+/** Petición vía relay en tu red local (Render → tu PC/Docker). */
+async function relayGqlRequest(body, operationName = 'gql') {
+  const client = createClient({
+    'X-Relay-Key': config.doramasFlixRelayKey
+  });
+  return postWithRetries(client, config.doramasFlixRelayUrl, body, `${operationName}@relay`);
+}
+
+/**
+ * Usa relay si está configurado; si no, petición directa.
+ * En Render la IP de datacenter suele estar bloqueada → configurar relay.
+ */
+async function gqlRequest(body, operationName = 'gql') {
+  if (config.doramasFlixRelayUrl) {
+    return relayGqlRequest(body, operationName);
+  }
+  return directGqlRequest(body, operationName);
+}
+
+module.exports = {
+  gqlRequest,
+  directGqlRequest,
+  apiUrl,
+  GQL_HEADERS
+};

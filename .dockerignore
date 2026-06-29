@@ -1,0 +1,7 @@
+front/
+frontWebOS/
+.git/
+**/.env
+**/node_modules
+**/data
+**/tv_cache.json
