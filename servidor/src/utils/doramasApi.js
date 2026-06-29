@@ -76,9 +76,19 @@ async function postWithRetries(client, url, body, operationName) {
       lastError = err;
       const status = err.response?.status;
       const retryable = !status || status === 429 || status >= 500;
-      console.warn(
-        `[DoramasFlix] ${operationName} intento ${attempt}/${config.doramasFlixRetries}: ${formatError(err)}`
-      );
+
+      // Diagnóstico claro del motivo
+      if (status === 401 || status === 403) {
+        console.error(
+          `[DoramasFlix] ${operationName} → ${status} (IP probablemente bloqueada). ` +
+          'Configura DORAMASFLIX_RELAY_URL o un proxy residencial.'
+        );
+      } else {
+        console.warn(
+          `[DoramasFlix] ${operationName} intento ${attempt}/${config.doramasFlixRetries}: ${formatError(err)}`
+        );
+      }
+
       if (attempt < config.doramasFlixRetries && retryable) {
         await new Promise((r) => setTimeout(r, attempt * 700));
         continue;
@@ -107,10 +117,35 @@ async function relayGqlRequest(body, operationName = 'gql') {
 /**
  * Usa relay si está configurado; si no, petición directa.
  * En Render la IP de datacenter suele estar bloqueada → configurar relay.
+ * Si el relay falla, hace fallback a petición directa como último recurso.
  */
 async function gqlRequest(body, operationName = 'gql') {
   if (config.doramasFlixRelayUrl) {
-    return relayGqlRequest(body, operationName);
+    try {
+      return await relayGqlRequest(body, operationName);
+    } catch (relayErr) {
+      const status = relayErr.response?.status;
+      // Si el relay devuelve 401 (clave incorrecta) o error de red, intentar directo
+      console.warn(
+        `[DoramasFlix] Relay falló (${formatError(relayErr)}). Intentando petición directa como fallback...`
+      );
+      try {
+        return await directGqlRequest(body, `${operationName}@fallback-directo`);
+      } catch (directErr) {
+        const directStatus = directErr.response?.status;
+        if (directStatus === 401 || directStatus === 403) {
+          console.error(
+            '[DoramasFlix] ❌ Tanto relay como directo fallaron. ' +
+            'El relay no responde y la IP directa está bloqueada. ' +
+            'Verifica: 1) que DORAMASFLIX_RELAY_URL es accesible, ' +
+            '2) que DORAMASFLIX_RELAY_KEY coincide en ambos lados, ' +
+            '3) que Docker local con DORAMAS_RELAY_ENABLED=true está corriendo.'
+          );
+        }
+        // Lanzar el error original del relay (es más relevante)
+        throw relayErr;
+      }
+    }
   }
   return directGqlRequest(body, operationName);
 }

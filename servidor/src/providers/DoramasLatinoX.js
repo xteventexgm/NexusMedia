@@ -6,7 +6,7 @@ const { extraerVideoDirecto, UA } = require('../utils/extractor');
 const { extraerHlsP2pPlayDetailed } = require('../utils/p2pPlay');
 const {
   buildProxyUrl,
-  validateM3u8,
+  validateM3u8Fast,
   defaultReferer
 } = require('../utils/streamProxy');
 
@@ -221,8 +221,16 @@ class DoramasLatinoX extends ProviderBase {
 
   async prepararHls(rawUrl, referer) {
     const ref = referer || defaultReferer(rawUrl);
-    const valido = await validateM3u8(rawUrl, ref);
-    if (!valido) return null;
+    // Validación rápida: si devuelve null (timeout/error) NO descartamos la URL.
+    // Solo descartamos si estamos SEGUROS de que no es un m3u8 válido (false explícito).
+    const valido = await validateM3u8Fast(rawUrl, ref);
+    if (valido === false) {
+      console.log(`[DoramasLatinoX] HLS descartado (no es m3u8 válido): ${rawUrl.slice(0, 80)}`);
+      return null;
+    }
+    if (valido === null) {
+      console.log(`[DoramasLatinoX] HLS no verificable (timeout), proxy de todas formas: ${rawUrl.slice(0, 80)}`);
+    }
     const proxied = buildProxyUrl(rawUrl, ref);
     return proxied || rawUrl;
   }
@@ -372,6 +380,12 @@ class DoramasLatinoX extends ProviderBase {
       }
     } catch (error) {
       console.error('[DoramasLatinoX] getEnlaces:', error.message);
+    }
+
+    if (hlsOut.length === 0 && iframeOut.length === 0) {
+      console.warn(`[DoramasLatinoX] ⚠ Ningún servidor encontrado para: ${targetUrl.slice(0, 80)}`);
+    } else {
+      console.log(`[DoramasLatinoX] Servidores: ${hlsOut.length} HLS + ${iframeOut.length} iframe`);
     }
 
     return [...hlsOut, ...iframeOut];

@@ -11,7 +11,30 @@ const ALLOWED_HOSTS = [
   'm3u8',
   'bytefcdn',
   'cdn77',
-  'workers.dev'
+  'workers.dev',
+  // CDNs adicionales usados por providers de doramas / anime
+  'ggvideo',
+  'googlevideo',
+  'bicdn.net',
+  'streamhub',
+  'cdnfile',
+  'mixdrop',
+  'kwik',
+  'rapid',
+  'sbembed',
+  'streamsb',
+  'vidhide',
+  'filemoon',
+  'streamwish',
+  'wishembed',
+  'sfastwish',
+  'playerwish',
+  'embedwish',
+  'streamtape',
+  'stape.fun',
+  'uqload',
+  'dood',
+  'voe.sx'
 ];
 
 function isAllowedStreamUrl(url) {
@@ -44,12 +67,22 @@ function resolvePlaylistUrl(baseUrl, line) {
   return new URL(trimmed, base).href;
 }
 
+let _warnedMissingPublicUrl = false;
+
 function getPublicApiBase() {
   const raw =
     process.env.NEXUS_PUBLIC_URL ||
     process.env.RENDER_EXTERNAL_URL ||
     process.env.RAILWAY_STATIC_URL ||
     '';
+  if (!raw && !_warnedMissingPublicUrl) {
+    _warnedMissingPublicUrl = true;
+    console.warn(
+      '[StreamProxy] ⚠ NEXUS_PUBLIC_URL no está configurada. ' +
+      'El proxy HLS NO podrá reescribir URLs → los CDNs que requieren Referer fallarán. ' +
+      'Configura NEXUS_PUBLIC_URL con la URL pública de tu servidor (ej: https://tu-app.onrender.com).'
+    );
+  }
   return raw.replace(/\/$/, '');
 }
 
@@ -106,6 +139,28 @@ async function validateM3u8(url, referer) {
   }
 }
 
+/**
+ * Validación rápida (timeout corto) para no bloquear la respuesta al frontend.
+ * Devuelve true/false/null (null = no se pudo determinar, tratar como válido).
+ */
+async function validateM3u8Fast(url, referer) {
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': UA,
+        Referer: referer || defaultReferer(url),
+        Accept: 'application/vnd.apple.mpegurl,*/*'
+      },
+      timeout: 5000,
+      responseType: 'text',
+      validateStatus: (s) => s >= 200 && s < 400
+    });
+    return typeof response.data === 'string' && response.data.includes('#EXTM3U');
+  } catch {
+    return null; // No se pudo determinar → no descartar
+  }
+}
+
 module.exports = {
   isAllowedStreamUrl,
   defaultReferer,
@@ -113,5 +168,6 @@ module.exports = {
   rewriteM3u8Playlist,
   fetchStreamResource,
   validateM3u8,
+  validateM3u8Fast,
   getPublicApiBase
 };

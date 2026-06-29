@@ -126,17 +126,44 @@ async function extraerHlsP2pPlayDetailed(embedUrl, timeoutMs = 20000) {
     base = 'https://doramasfoxito.p2pplay.online';
   }
 
-  const { data: encoded } = await axios.get(`${base}/api/v1/video?id=${encodeURIComponent(hash)}`, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0',
-      Accept: '*/*'
-    },
-    timeout: timeoutMs,
-    validateStatus: (s) => s >= 200 && s < 300
-  });
+  let encoded;
+  try {
+    const resp = await axios.get(`${base}/api/v1/video?id=${encodeURIComponent(hash)}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0',
+        Accept: '*/*'
+      },
+      timeout: timeoutMs,
+      validateStatus: (s) => s >= 200 && s < 300
+    });
+    encoded = resp.data;
+  } catch (fetchErr) {
+    console.warn('[p2pPlay] Error obteniendo video API:', fetchErr.message);
+    return [];
+  }
 
-  const hex = String(encoded).trim().replace(/^"|"$/g, '');
   const entries = [];
+
+  // Fallback 1: la respuesta ya es JSON sin cifrar (algunos endpoints nuevos)
+  try {
+    const raw = typeof encoded === 'object' ? encoded : JSON.parse(String(encoded));
+    if (raw && typeof raw === 'object') {
+      const batch = extractHlsEntries(JSON.stringify(raw), base);
+      for (const e of batch) {
+        if (!entries.some((x) => x.url === e.url)) entries.push(e);
+      }
+      if (entries.length) {
+        console.log(`[p2pPlay] ${entries.length} HLS encontrados (JSON directo)`);
+        return entries;
+      }
+    }
+  } catch (_) {
+    /* no era JSON directo, intentar descifrar */
+  }
+
+  // Descifrado AES con las claves conocidas
+  const hex = String(encoded).trim().replace(/^"|"$/g, '');
+  let decryptErrors = 0;
 
   for (const iv of P2P_IVS) {
     try {
@@ -147,9 +174,21 @@ async function extraerHlsP2pPlayDetailed(embedUrl, timeoutMs = 20000) {
         if (!entries.some((x) => x.url === e.url)) entries.push(e);
       }
       if (entries.length) break;
-    } catch (_) {
-      /* siguiente IV */
+    } catch (decryptErr) {
+      decryptErrors++;
+      console.warn(`[p2pPlay] Desencriptación falló con IV=${iv}: ${decryptErr.message}`);
     }
+  }
+
+  if (entries.length === 0 && decryptErrors === P2P_IVS.length) {
+    console.error(
+      '[p2pPlay] ⚠ TODAS las claves/IVs fallaron. ' +
+      'Probable rotación de claves en p2pplay.online. ' +
+      'Actualizar P2P_KEY e P2P_IVS en p2pPlay.js. ' +
+      `Hash: ${hash.substring(0, 20)}... Hex (inicio): ${hex.substring(0, 40)}...`
+    );
+  } else if (entries.length > 0) {
+    console.log(`[p2pPlay] ${entries.length} HLS encontrados (descifrado AES)`);
   }
 
   return entries;
