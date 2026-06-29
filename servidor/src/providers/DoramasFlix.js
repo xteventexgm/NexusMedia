@@ -1,5 +1,5 @@
 const ProviderBase = require('./ProviderBase');
-const axios = require('axios');
+const { gqlRequest } = require('../utils/doramasApi');
 const { extraerVideoDirecto } = require('../utils/extractor');
 
 class DoramasFlix extends ProviderBase {
@@ -9,7 +9,6 @@ class DoramasFlix extends ProviderBase {
         this.nombre = 'DoramasFlix';
         this.icono = '🎭';
         this.color = '#ec4899';
-        this.apiUrl = 'https://doraflix.fluxcedene.net/api/gql';
     }
 
     getImageUrl(path) {
@@ -25,8 +24,6 @@ class DoramasFlix extends ProviderBase {
         return langs[id] || id;
     }
 
-    // Mapa género (slug) -> MongoID real de la API de DoramasFlix.
-    // Permite filtrar el catálogo por género (la API lo acepta vía 'genreId').
     generoAId(slug) {
         const mapa = {
             'accion': '5f0630baeb20933e4aeb6869',
@@ -48,6 +45,53 @@ class DoramasFlix extends ProviderBase {
             'politica': '5f0630b0eb20933e4aeb66fb'
         };
         return mapa[slug] || null;
+    }
+
+    mapItem(item) {
+        const esSerie = item.__typename === 'Dorama' || item.isTVShow === true;
+        return {
+            titulo: item.name,
+            url: `${esSerie ? 'serie' : 'pelicula'}|${item.slug}|${item._id}`,
+            poster: this.getImageUrl(item.poster || item.poster_path),
+            estado: esSerie ? "Dorama" : "Película"
+        };
+    }
+
+    aplicarMetadatos(detalles, info, fallbackEstado) {
+        if (!info) return;
+        detalles.titulo = info.name || detalles.titulo;
+        detalles.sinopsis = info.overview || detalles.sinopsis;
+        detalles.poster = this.getImageUrl(info.poster || info.poster_path) || detalles.poster;
+        if (info.genres) detalles.generos = info.genres.map(g => g.name);
+        if (info.labels && info.labels.length > 0) {
+            const labelEstado = info.labels.find(l => /emisi|finaliz|pr[oó]x|estren/i.test(l.name));
+            if (labelEstado) detalles.estado = labelEstado.name;
+        }
+        if (!detalles.estado) detalles.estado = fallbackEstado;
+    }
+
+    tituloDesdeSlug(slug) {
+        if (!slug) return '';
+        return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+
+    async buscarMetadatosFallback(slug, id) {
+        try {
+            const data = await gqlRequest({
+                operationName: 'searchAll',
+                variables: { input: this.tituloDesdeSlug(slug) },
+                query: 'query searchAll($input: String!) { searchDorama(input: $input, limit: 20) { _id slug name poster_path isTVShow poster overview genres { name } labels { name } __typename } searchMovie(input: $input, limit: 20) { _id name slug poster_path poster overview genres { name } labels { name } __typename } }'
+            }, 'searchAllFallback');
+
+            const items = [
+                ...(data.data?.searchDorama || []),
+                ...(data.data?.searchMovie || [])
+            ];
+            return items.find((it) => it.slug === slug || it._id === id) || items[0] || null;
+        } catch (e) {
+            console.warn('[DoramasFlix] Fallback metadatos falló:', e.message);
+            return null;
+        }
     }
 
     async getFiltros() {
@@ -85,15 +129,12 @@ class DoramasFlix extends ProviderBase {
         ];
     }
 
-
     async getCatalogo(filtros = {}, page = 1) {
         const isPeliculas = filtros.categoria === 'peliculas';
         const genreId = filtros.genero ? this.generoAId(filtros.genero) : null;
         const limit = 32;
         const skip = (page - 1) * limit;
 
-        // La API acepta 'genreId' (MongoID) para filtrar por género, además de
-        // isTVShow para distinguir doramas/series de películas.
         let body;
         if (isPeliculas) {
             const filter = {};
@@ -114,36 +155,20 @@ class DoramasFlix extends ProviderBase {
         }
 
         try {
-            console.log("DoramasFlix getCatalogo URL:", this.apiUrl, "operation:", body.operationName);
-            const { data } = await axios.post(this.apiUrl, body, { 
-                headers: { 'Content-Type': 'application/json' } 
-            });
-
-            // Blindaje contra errores de estructura
+            const data = await gqlRequest(body, body.operationName);
             if (!data || !data.data) return [];
-            
-            const items = isPeliculas ? 
-                (data.data.paginationMovie ? data.data.paginationMovie.items : []) : 
+
+            const items = isPeliculas ?
+                (data.data.paginationMovie ? data.data.paginationMovie.items : []) :
                 (data.data.listDoramas || []);
 
-            return items.map(item => {
-                const esSerie = item.__typename === 'Dorama' || item.isTVShow === true;
-                return {
-                    titulo: item.name,
-                    url: `${esSerie ? 'serie' : 'pelicula'}|${item.slug}|${item._id}`,
-                    poster: this.getImageUrl(item.poster || item.poster_path),
-                    estado: esSerie ? "Dorama" : "Película"
-                };
-                
-            });
+            return items.map(item => this.mapItem(item));
         } catch (error) {
-            console.error("Error en GraphQL:", error.message);
+            console.error('[DoramasFlix] getCatalogo:', error.message);
             return [];
         }
     }
 
-
-    // Populares reales: la API soporta el orden POPULARITY_DESC
     async getPopulares(page = 1) {
         const limit = 32;
         const skip = (page - 1) * limit;
@@ -153,23 +178,17 @@ class DoramasFlix extends ProviderBase {
             query: "query listDoramasMobile($limit: Int, $skip: Int, $sort: SortFindManyDoramaInput, $filter: FilterFindManyDoramaInput) {\n  listDoramas(limit: $limit, skip: $skip, sort: $sort, filter: $filter) {\n    _id\n    name\n    slug\n    poster_path\n    isTVShow\n    poster\n    __typename\n  }\n}"
         };
         try {
-            const { data } = await axios.post(this.apiUrl, body, { headers: { 'Content-Type': 'application/json' } });
-            if (!data || !data.data || !data.data.listDoramas) return [];
-            return data.data.listDoramas.map(item => {
-                const esSerie = item.__typename === 'Dorama' || item.isTVShow === true;
-                return {
-                    titulo: item.name,
-                    url: `${esSerie ? 'serie' : 'pelicula'}|${item.slug}|${item._id}`,
-                    poster: this.getImageUrl(item.poster || item.poster_path),
-                    estado: esSerie ? "Dorama" : "Película"
-                };
-            });
+            const data = await gqlRequest(body, 'listDoramasPopular');
+            if (!data?.data?.listDoramas) return [];
+            return data.data.listDoramas.map(item => this.mapItem(item));
         } catch (e) {
+            console.error('[DoramasFlix] getPopulares:', e.message);
             return [];
         }
     }
 
     async buscar(query, page = 1) {
+        void page;
         const body = {
             operationName: "searchAll",
             variables: { input: query },
@@ -177,102 +196,95 @@ class DoramasFlix extends ProviderBase {
         };
 
         try {
-            const { data } = await axios.post(this.apiUrl, body, { headers: { 'Content-Type': 'application/json' } });
-            const series = data.data.searchDorama || [];
-            const peliculas = data.data.searchMovie || [];
-            
-            return [...series, ...peliculas].map(item => {
-                const esSerie = item.__typename === 'Dorama' || item.isTVShow === true;
-                return {
-                    titulo: item.name,
-                    url: `${esSerie ? 'serie' : 'pelicula'}|${item.slug}|${item._id}`,
-                    poster: this.getImageUrl(item.poster || item.poster_path),
-                    estado: esSerie ? "Dorama" : "Película"
-                };
-            });
-        } catch (e) { return []; }
+            const data = await gqlRequest(body, 'searchAll');
+            const series = data.data?.searchDorama || [];
+            const peliculas = data.data?.searchMovie || [];
+            return [...series, ...peliculas].map(item => this.mapItem(item));
+        } catch (e) {
+            console.error('[DoramasFlix] buscar:', e.message);
+            return [];
+        }
     }
 
     async getDetalles(urlPath) {
-        const [tipo, slug, id] = urlPath.split('|');
-        const detalles = { titulo: '', sinopsis: '', poster: '', año: null, calificacion: null, generos: [], episodios: [], estado: null };
+        let decoded = urlPath;
+        try {
+            decoded = decodeURIComponent(urlPath);
+        } catch (_) {
+            decoded = urlPath;
+        }
+
+        const [tipo, slug, id] = decoded.split('|');
+        const detalles = {
+            titulo: this.tituloDesdeSlug(slug),
+            sinopsis: '',
+            poster: '',
+            año: null,
+            calificacion: null,
+            generos: [],
+            episodios: [],
+            estado: null
+        };
 
         try {
             if (tipo === 'pelicula') {
-                const bodyMovie = {
+                const data = await gqlRequest({
                     operationName: "detailMovieExtra",
                     variables: { slug: slug },
                     query: "query detailMovieExtra($slug: String!) { detailMovie(filter: {slug: $slug}) { name overview poster_path poster links_online genres { name } labels { name } } }"
-                };
-                const { data } = await axios.post(this.apiUrl, bodyMovie);
-                const info = data.data.detailMovie;
-                
-                detalles.titulo = info.name;
-                detalles.sinopsis = info.overview;
-                detalles.poster = this.getImageUrl(info.poster || info.poster_path);
-                if (info.genres) detalles.generos = info.genres.map(g => g.name);
-                
-                // Extraer el estado real desde los labels en las películas
-                if (info.labels && info.labels.length > 0) {
-                    const labelEstado = info.labels.find(l => /emisi|finaliz|pr[oó]x|estren/i.test(l.name));
-                    if (labelEstado) detalles.estado = labelEstado.name;
-                }
-                if (!detalles.estado) detalles.estado = "Película";
+                }, 'detailMovieExtra');
 
+                const info = data.data?.detailMovie;
+                if (!info) throw new Error('Película no encontrada');
+
+                this.aplicarMetadatos(detalles, info, 'Película');
                 detalles.episodios.push({
                     nombre: "Película",
                     episodio: 1,
                     url: `links|${JSON.stringify(info.links_online || [])}`
                 });
-                
             } else {
+                let info = null;
                 try {
-                    const bodyMeta = {
+                    const data = await gqlRequest({
                         operationName: "detailDorama",
                         variables: { slug: slug },
                         query: "query detailDorama($slug: String!) { detailDorama(filter: {slug: $slug}) { name overview poster_path poster genres { name } labels { name } } }"
-                    };
-                    const resMeta = await axios.post(this.apiUrl, bodyMeta);
-                    if (resMeta.data && resMeta.data.data && resMeta.data.data.detailDorama) {
-                        const info = resMeta.data.data.detailDorama;
-                        detalles.titulo = info.name;
-                        detalles.sinopsis = info.overview;
-                        detalles.poster = this.getImageUrl(info.poster || info.poster_path);
-                        if (info.genres) detalles.generos = info.genres.map(g => g.name);
-                        
-                        // Extraer el estado real desde los labels en los doramas
-                        if (info.labels && info.labels.length > 0) {
-                            const labelEstado = info.labels.find(l => /emisi|finaliz|pr[oó]x|estren/i.test(l.name));
-                            if (labelEstado) detalles.estado = labelEstado.name;
-                        }
-                        if (!detalles.estado) detalles.estado = "Dorama";
-                    }
-                } catch (e) { console.log("Error cargando metadatos"); }
+                    }, 'detailDorama');
+                    info = data.data?.detailDorama;
+                } catch (e) {
+                    console.warn('[DoramasFlix] detailDorama falló, intentando fallback:', e.message);
+                    const fallback = await this.buscarMetadatosFallback(slug, id);
+                    if (fallback) info = fallback;
+                }
+
+                this.aplicarMetadatos(detalles, info, 'Dorama');
 
                 let seasons = [];
                 try {
-                    const bodySeasons = {
+                    const data = await gqlRequest({
                         operationName: "listSeasons",
                         variables: { serie_id: id },
                         query: "query listSeasons($serie_id: MongoID!) { listSeasons(sort: NUMBER_ASC, filter: {serie_id: $serie_id}) { season_number } }"
-                    };
-                    const resSeasons = await axios.post(this.apiUrl, bodySeasons);
-                    if (resSeasons.data && resSeasons.data.data && resSeasons.data.data.listSeasons) {
-                        seasons = resSeasons.data.data.listSeasons;
-                    }
-                } catch (e) {}
+                    }, 'listSeasons');
+                    seasons = data.data?.listSeasons || [];
+                } catch (e) {
+                    console.warn('[DoramasFlix] listSeasons:', e.message);
+                }
 
-                if (seasons && seasons.length > 0) {
+                if (seasons.length > 0) {
                     const promesasEpisodios = seasons.map(async (season) => {
                         try {
-                            const bodyEps = {
+                            const data = await gqlRequest({
                                 operationName: "listEpisodesPagination",
                                 variables: { serie_id: id, season_number: season.season_number, page: 1 },
                                 query: "query listEpisodesPagination($page: Int!, $serie_id: MongoID!, $season_number: Float!) { paginationEpisode( page: $page perPage: 1000 sort: NUMBER_ASC filter: {type_serie: \"dorama\", serie_id: $serie_id, season_number: $season_number} ) { items { name episode_number season_number slug } } }"
-                            };
-                            const resEps = await axios.post(this.apiUrl, bodyEps);
-                            return resEps.data.data.paginationEpisode.items || [];
-                        } catch (e) { return []; }
+                            }, 'listEpisodesPagination');
+                            return data.data?.paginationEpisode?.items || [];
+                        } catch (e) {
+                            console.warn('[DoramasFlix] listEpisodesPagination:', e.message);
+                            return [];
+                        }
                     });
 
                     const resultadosEps = await Promise.all(promesasEpisodios);
@@ -288,7 +300,7 @@ class DoramasFlix extends ProviderBase {
                 }
             }
         } catch (error) {
-            console.log("Error crítico en detalles:", error.message);
+            console.error('[DoramasFlix] getDetalles:', error.message);
         }
         return detalles;
     }
@@ -303,7 +315,6 @@ class DoramasFlix extends ProviderBase {
                   .replace("https://uqload.to", "https://uqload.co");
     }
 
-    // Extractor HLS centralizado (utils/extractor.js)
     async extraerVideoPuro(embedUrl) {
         return extraerVideoDirecto(embedUrl);
     }
@@ -314,10 +325,10 @@ class DoramasFlix extends ProviderBase {
         if (urlEpisodio.startsWith('links|')) {
             const jsonStr = urlEpisodio.replace('links|', '');
             enlacesCrudos = JSON.parse(jsonStr);
-        } 
+        }
         else if (urlEpisodio.startsWith('episodio|')) {
             let slug = urlEpisodio.replace('episodio|', '');
-            
+
             if (slug.includes('doramasflix.co')) {
                 slug = slug.replace('https://doramasflix.co/', '')
                            .replace('https://doramasflix.co', '')
@@ -325,19 +336,15 @@ class DoramasFlix extends ProviderBase {
             }
             if (slug.startsWith('/')) slug = slug.substring(1);
 
-            const body = {
-                operationName: "GetEpisodeLinks",
-                variables: { episode_slug: slug },
-                query: "query GetEpisodeLinks($episode_slug: String!) { detailEpisode(filter: {slug: $episode_slug, type_serie: \"dorama\"}) { links_online } }"
-            };
-            
             try {
-                const { data } = await axios.post(this.apiUrl, body);
-                if (data && data.data && data.data.detailEpisode) {
-                    enlacesCrudos = data.data.detailEpisode.links_online || [];
-                }
+                const data = await gqlRequest({
+                    operationName: "GetEpisodeLinks",
+                    variables: { episode_slug: slug },
+                    query: "query GetEpisodeLinks($episode_slug: String!) { detailEpisode(filter: {slug: $episode_slug, type_serie: \"dorama\"}) { links_online } }"
+                }, 'GetEpisodeLinks');
+                enlacesCrudos = data.data?.detailEpisode?.links_online || [];
             } catch (e) {
-                console.log("Error trayendo links de serie:", e.message);
+                console.error('[DoramasFlix] getEnlaces:', e.message);
             }
         }
 
@@ -346,8 +353,7 @@ class DoramasFlix extends ProviderBase {
             if (!item.link) continue;
             const urlCorregida = this.fixHostsLinks(item.link);
             const idioma = this.getLangById(item.lang || item.server);
-            
-            // Si el servidor es conocido, lo hackeamos para sacar el HLS/MP4 directo (autoplay)
+
             if (/vidhide|streamwish|filemoon|streamtape|strtape|stape/i.test(urlCorregida)) {
                 const videoReal = await this.extraerVideoPuro(urlCorregida);
                 if (videoReal) {
@@ -356,15 +362,15 @@ class DoramasFlix extends ProviderBase {
                         url: videoReal
                     });
                 } else {
-                    servidores.push({ 
-                        nombre: `Iframe (${new URL(urlCorregida).hostname.split('.')[0]}) [${idioma}]`, 
-                        url: urlCorregida 
+                    servidores.push({
+                        nombre: `Iframe (${new URL(urlCorregida).hostname.split('.')[0]}) [${idioma}]`,
+                        url: urlCorregida
                     });
                 }
             } else {
-                servidores.push({ 
-                    nombre: `Servidor: ${item.server || 'Externo'} [${idioma}]`, 
-                    url: urlCorregida 
+                servidores.push({
+                    nombre: `Servidor: ${item.server || 'Externo'} [${idioma}]`,
+                    url: urlCorregida
                 });
             }
         }
