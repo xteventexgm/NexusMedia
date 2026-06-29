@@ -3,7 +3,12 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const config = require('../config/env');
 const { extraerVideoDirecto, UA } = require('../utils/extractor');
-const { extraerHlsP2pPlay } = require('../utils/p2pPlay');
+const { extraerHlsP2pPlayDetailed } = require('../utils/p2pPlay');
+const {
+  buildProxyUrl,
+  validateM3u8,
+  defaultReferer
+} = require('../utils/streamProxy');
 
 const SECCIONES = [
   { id: 'doramas', url: 'https://doramaslatinox.com/tipo/dorama/', etiqueta: 'Doramas' },
@@ -214,6 +219,45 @@ class DoramasLatinoX extends ProviderBase {
     }
   }
 
+  async prepararHls(rawUrl, referer) {
+    const ref = referer || defaultReferer(rawUrl);
+    const valido = await validateM3u8(rawUrl, ref);
+    if (!valido) return null;
+    const proxied = buildProxyUrl(rawUrl, ref);
+    return proxied || rawUrl;
+  }
+
+  esEmbedInutil(url) {
+    return /p2pplay\.online/i.test(url) || /abyssplayer\.com/i.test(url);
+  }
+
+  async resolverP2pPlay(embedUrl, referer) {
+    const hls = [];
+    try {
+      const entries = await extraerHlsP2pPlayDetailed(embedUrl, EMBED_TIMEOUT);
+      let baseRef;
+      try {
+        const u = new URL(embedUrl.split('#')[0]);
+        baseRef = `${u.protocol}//${u.host}/`;
+      } catch {
+        baseRef = referer;
+      }
+
+      for (const entry of entries) {
+        const listo = await this.prepararHls(entry.url, baseRef);
+        if (listo && !hls.some((s) => s.url === listo)) {
+          hls.push({
+            nombre: `Auto-Play HLS [${entry.label}]`,
+            url: listo
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[DoramasLatinoX] p2pplay:', e.message);
+    }
+    return hls;
+  }
+
   async resolverEmbed(embedUrl, referer, etiqueta = '') {
     const hls = [];
     const iframes = [];
@@ -224,20 +268,13 @@ class DoramasLatinoX extends ProviderBase {
     };
 
     const addIframe = (url, nombre) => {
-      if (!url || iframes.some((s) => s.url === url)) return;
+      if (!url || this.esEmbedInutil(url) || iframes.some((s) => s.url === url)) return;
       iframes.push({ nombre, url });
     };
 
     if (/p2pplay\.online/i.test(embedUrl)) {
-      try {
-        const streams = await extraerHlsP2pPlay(embedUrl, EMBED_TIMEOUT);
-        streams.forEach((url, i) => {
-          addHls(url, `Auto-Play HLS [LatinoX${streams.length > 1 ? ` ${i + 1}` : ''}]`);
-        });
-        if (hls.length) return hls;
-      } catch (e) {
-        console.warn('[DoramasLatinoX] p2pplay:', e.message);
-      }
+      const streams = await this.resolverP2pPlay(embedUrl, referer);
+      if (streams.length) return streams;
     }
 
     let target = embedUrl;
@@ -251,33 +288,34 @@ class DoramasLatinoX extends ProviderBase {
         const iframe = $('iframe').attr('src');
         if (iframe) target = this.fixUrl(iframe) || iframe;
       } catch (_) {
-        /* seguir con embedUrl */
+        /* seguir */
       }
     }
 
     if (/p2pplay\.online/i.test(target)) {
-      try {
-        const streams = await extraerHlsP2pPlay(target, EMBED_TIMEOUT);
-        streams.forEach((url, i) => {
-          addHls(url, `Auto-Play HLS [LatinoX${streams.length > 1 ? ` ${i + 1}` : ''}]`);
-        });
-        if (hls.length) return hls;
-      } catch (e) {
-        console.warn('[DoramasLatinoX] p2pplay iframe:', e.message);
-      }
+      const streams = await this.resolverP2pPlay(target, referer);
+      if (streams.length) return streams;
     }
 
     const directo = await extraerVideoDirecto(target);
     if (directo) {
+      const listo = await this.prepararHls(directo, referer || defaultReferer(target));
+      if (listo) {
+        addHls(listo, 'Auto-Play HLS');
+        return hls;
+      }
       addHls(directo, 'Auto-Play HLS');
       return hls;
     }
 
-    let host = 'Externo';
-    try {
-      host = new URL(target).hostname.split('.')[0];
-    } catch (_) {}
-    addIframe(target, `Iframe (${host})${etiqueta ? ` ${etiqueta}` : ''}`);
+    if (!this.esEmbedInutil(target)) {
+      let host = 'Externo';
+      try {
+        host = new URL(target).hostname.split('.')[0];
+      } catch (_) {}
+      addIframe(target, `Iframe (${host})${etiqueta ? ` ${etiqueta}` : ''}`);
+    }
+
     return iframes;
   }
 

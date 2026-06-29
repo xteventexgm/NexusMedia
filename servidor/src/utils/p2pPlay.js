@@ -37,53 +37,81 @@ function resolveP2pUrl(base, path) {
 }
 
 function extractHlsUrls(decryptedText, base) {
+  return extractHlsEntries(decryptedText, base).map((x) => x.url);
+}
+
+function extractHlsEntries(decryptedText, base) {
   const text = String(decryptedText);
-  const found = [];
+  const ordered = [];
   const seen = new Set();
 
-  const push = (raw) => {
+  const push = (raw, label) => {
     const url = resolveP2pUrl(base, raw);
     if (!url || seen.has(url)) return;
     if (!/\.m3u8/i.test(url) && !url.includes('/hls/')) return;
     seen.add(url);
-    found.push(url);
+    ordered.push({ url, label: label || 'HLS' });
   };
+
+  let configOrder = [];
+  const cfgMatch = text.match(/"streamingConfig"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (cfgMatch) {
+    try {
+      const cfg = JSON.parse(cfgMatch[1].replace(/\\\//g, '/'));
+      if (Array.isArray(cfg.order)) configOrder = cfg.order;
+    } catch (_) {}
+  }
+
+  const labelForKey = (key) => {
+    const m = key.match(/hlsVideo(\w+)/i);
+    return m ? m[1] : key;
+  };
+
+  const fieldMap = new Map();
+  for (const m of text.matchAll(/"hls[A-Za-z]*"\s*:\s*"((?:[^"\\]|\\.)*)"/g)) {
+    const keyMatch = m[0].match(/"(hls[A-Za-z]*)"/);
+    const key = keyMatch ? keyMatch[1] : 'hls';
+    fieldMap.set(key, m[1]);
+  }
 
   try {
     const parsed = JSON.parse(text);
-    for (const key of HLS_FIELD_ORDER) {
-      if (parsed[key]) push(parsed[key]);
-    }
     for (const [key, val] of Object.entries(parsed)) {
-      if (/^hls/i.test(key) && typeof val === 'string') push(val);
+      if (/^hls/i.test(key) && typeof val === 'string') fieldMap.set(key, val);
     }
-  } catch (_) {
-    /* JSON parcial o con bytes corruptos — regex abajo */
+  } catch (_) {}
+
+  for (const provider of configOrder) {
+    const key = `hlsVideo${provider}`;
+    if (fieldMap.has(key)) push(fieldMap.get(key), provider);
   }
 
   for (const key of HLS_FIELD_ORDER) {
-    const re = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`);
-    const m = text.match(re);
-    if (m) push(m[1]);
+    if (fieldMap.has(key)) push(fieldMap.get(key), labelForKey(key));
   }
 
-  for (const m of text.matchAll(/"hls[A-Za-z]*"\s*:\s*"((?:[^"\\]|\\.)*)"/g)) {
-    push(m[1]);
+  for (const [key, val] of fieldMap) {
+    push(val, labelForKey(key));
   }
 
   const rel = text.match(/(\/hls\/[^\s"']+\.m3u8[^\s"']*)/i);
-  if (rel) push(rel[1]);
+  if (rel) push(rel[1], 'Direct');
 
   const direct = buscarUrlVideo(text);
-  if (direct) push(direct);
+  if (direct) push(direct, 'Direct');
 
-  return found;
+  return ordered;
 }
 
 /**
  * Extrae URLs HLS desde un embed p2pplay.online (#hash).
  */
 async function extraerHlsP2pPlay(embedUrl, timeoutMs = 20000) {
+  const entries = await extraerHlsP2pPlayDetailed(embedUrl, timeoutMs);
+  return entries.map((e) => e.url);
+}
+
+async function extraerHlsP2pPlayDetailed(embedUrl, timeoutMs = 20000) {
   const hash = embedUrl.includes('#')
     ? embedUrl.substring(embedUrl.lastIndexOf('#') + 1)
     : embedUrl.substring(embedUrl.lastIndexOf('/') + 1);
@@ -108,27 +136,28 @@ async function extraerHlsP2pPlay(embedUrl, timeoutMs = 20000) {
   });
 
   const hex = String(encoded).trim().replace(/^"|"$/g, '');
-  const urls = [];
+  const entries = [];
 
   for (const iv of P2P_IVS) {
     try {
       const decrypted = decryptP2pHex(hex, P2P_KEY, iv);
       const text = decrypted.toString('utf8');
-      const batch = extractHlsUrls(text, base);
-      for (const u of batch) {
-        if (!urls.includes(u)) urls.push(u);
+      const batch = extractHlsEntries(text, base);
+      for (const e of batch) {
+        if (!entries.some((x) => x.url === e.url)) entries.push(e);
       }
-      if (urls.length) break;
+      if (entries.length) break;
     } catch (_) {
       /* siguiente IV */
     }
   }
 
-  return urls;
+  return entries;
 }
 
 module.exports = {
   extraerHlsP2pPlay,
+  extraerHlsP2pPlayDetailed,
   extractHlsUrls,
   resolveP2pUrl
 };
