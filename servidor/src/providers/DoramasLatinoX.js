@@ -1,13 +1,9 @@
 const ProviderBase = require('./ProviderBase');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const crypto = require('crypto');
 const config = require('../config/env');
-const { extraerVideoDirecto, UA, buscarUrlVideo } = require('../utils/extractor');
-
-const P2P_KEY = 'kiemtienmua911ca';
-const P2P_IVS = ['1234567890oiuytr', '0123456789abcdef'];
-const P2P_DEFAULT = 'https://doramasfoxito.p2pplay.online';
+const { extraerVideoDirecto, UA } = require('../utils/extractor');
+const { extraerHlsP2pPlay } = require('../utils/p2pPlay');
 
 const SECCIONES = [
   { id: 'doramas', url: 'https://doramaslatinox.com/tipo/dorama/', etiqueta: 'Doramas' },
@@ -22,52 +18,7 @@ const SECCIONES = [
   { id: 'japon', url: 'https://doramaslatinox.com/pais/japon/', etiqueta: 'Japón' }
 ];
 
-function decryptP2pHex(inputHex, key, iv) {
-  const decipher = crypto.createDecipheriv(
-    'aes-128-cbc',
-    Buffer.from(key, 'utf8'),
-    Buffer.from(iv, 'utf8')
-  );
-  return Buffer.concat([
-    decipher.update(Buffer.from(inputHex, 'hex')),
-    decipher.final()
-  ]).toString('utf8');
-}
-
-function resolveP2pUrl(base, path) {
-  if (!path) return null;
-  const clean = String(path).replace(/\\\//g, '/');
-  if (/^https?:\/\//i.test(clean)) return clean;
-  if (clean.startsWith('//')) return `https:${clean}`;
-  const origin = base.replace(/\/$/, '');
-  return `${origin}${clean.startsWith('/') ? '' : '/'}${clean}`;
-}
-
-function extractM3u8FromP2p(decrypted, base) {
-  try {
-    const parsed = JSON.parse(decrypted);
-    if (parsed.source) return resolveP2pUrl(base, parsed.source);
-  } catch (_) {
-    /* continuar con regex */
-  }
-
-  const fromField = decrypted.match(/"source"\s*:\s*"((?:\\.|[^"\\])*)"/);
-  if (fromField) {
-    const resolved = resolveP2pUrl(base, fromField[1]);
-    if (resolved) return resolved;
-  }
-
-  const direct = buscarUrlVideo(decrypted);
-  if (direct) return direct;
-
-  const rel = decrypted.match(/"source"\s*:\s*"(\/[^"]+\.m3u8[^"]*)"/i);
-  if (rel) return resolveP2pUrl(base, rel[1]);
-
-  const anyRel = decrypted.match(/(\/[A-Za-z0-9_\-/]+\.m3u8[^\s"']*)/i);
-  if (anyRel) return resolveP2pUrl(base, anyRel[1]);
-
-  return null;
-}
+const EMBED_TIMEOUT = Math.min(config.httpTimeoutMs, 15000);
 
 class DoramasLatinoX extends ProviderBase {
   constructor() {
@@ -90,7 +41,7 @@ class DoramasLatinoX extends ProviderBase {
   async fetchHtml(url, referer) {
     const { data } = await axios.get(url, {
       headers: this.headers(referer),
-      timeout: config.httpTimeoutMs
+      timeout: EMBED_TIMEOUT
     });
     return cheerio.load(data);
   }
@@ -263,133 +214,129 @@ class DoramasLatinoX extends ProviderBase {
     }
   }
 
-  async extraerP2pPlay(embedUrl) {
-    try {
-      const hash = embedUrl.includes('#')
-        ? embedUrl.substring(embedUrl.lastIndexOf('#') + 1)
-        : embedUrl.substring(embedUrl.lastIndexOf('/') + 1);
+  async resolverEmbed(embedUrl, referer, etiqueta = '') {
+    const hls = [];
+    const iframes = [];
 
-      let base;
-      try {
-        const u = new URL(embedUrl);
-        base = `${u.protocol}//${u.host}`;
-      } catch {
-        base = P2P_DEFAULT;
-      }
+    const addHls = (url, nombre) => {
+      if (!url || hls.some((s) => s.url === url)) return;
+      hls.push({ nombre, url });
+    };
 
-      const { data: encoded } = await axios.get(`${base}/api/v1/video?id=${hash}`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0'
-        },
-        timeout: config.httpTimeoutMs
-      });
-
-      const hex = String(encoded).trim();
-      for (const iv of P2P_IVS) {
-        try {
-          const decrypted = decryptP2pHex(hex, P2P_KEY, iv);
-          const m3u8 = extractM3u8FromP2p(decrypted, base);
-          if (m3u8) return m3u8;
-        } catch (_) {
-          /* probar siguiente IV */
-        }
-      }
-    } catch (e) {
-      console.warn('[DoramasLatinoX] p2pplay:', e.message);
-    }
-    return null;
-  }
-
-  async resolverEmbed(embedUrl, referer) {
-    const servidores = [];
+    const addIframe = (url, nombre) => {
+      if (!url || iframes.some((s) => s.url === url)) return;
+      iframes.push({ nombre, url });
+    };
 
     if (/p2pplay\.online/i.test(embedUrl)) {
-      const m3u8 = await this.extraerP2pPlay(embedUrl);
-      if (m3u8) {
-        servidores.push({ nombre: 'Auto-Play HLS [LatinoX]', url: m3u8 });
-        return servidores;
-      }
-    }
-
-    let iframeUrl = embedUrl;
-    try {
-      if (!/\.m3u8|\.mp4/i.test(embedUrl)) {
-        const $ = await this.fetchHtml(embedUrl, referer);
-        const iframe = $('iframe').attr('src');
-        if (iframe) iframeUrl = this.fixUrl(iframe) || iframe;
-      }
-    } catch (_) {
-      /* usar embedUrl original */
-    }
-
-    if (/p2pplay\.online/i.test(iframeUrl)) {
-      const m3u8 = await this.extraerP2pPlay(iframeUrl);
-      if (m3u8) {
-        servidores.push({ nombre: 'Auto-Play HLS [LatinoX]', url: m3u8 });
-        return servidores;
-      }
-    }
-
-    const directo = await extraerVideoDirecto(iframeUrl);
-    if (directo) {
-      servidores.push({ nombre: 'Auto-Play HLS', url: directo });
-    } else {
-      let host = 'Externo';
       try {
-        host = new URL(iframeUrl).hostname.split('.')[0];
-      } catch (_) {}
-      servidores.push({ nombre: `Iframe (${host})`, url: iframeUrl });
+        const streams = await extraerHlsP2pPlay(embedUrl, EMBED_TIMEOUT);
+        streams.forEach((url, i) => {
+          addHls(url, `Auto-Play HLS [LatinoX${streams.length > 1 ? ` ${i + 1}` : ''}]`);
+        });
+        if (hls.length) return hls;
+      } catch (e) {
+        console.warn('[DoramasLatinoX] p2pplay:', e.message);
+      }
     }
 
-    return servidores;
+    let target = embedUrl;
+    if (!/\.m3u8|\.mp4|p2pplay\.online/i.test(embedUrl)) {
+      try {
+        const { data } = await axios.get(embedUrl, {
+          headers: this.headers(referer),
+          timeout: EMBED_TIMEOUT
+        });
+        const $ = cheerio.load(data);
+        const iframe = $('iframe').attr('src');
+        if (iframe) target = this.fixUrl(iframe) || iframe;
+      } catch (_) {
+        /* seguir con embedUrl */
+      }
+    }
+
+    if (/p2pplay\.online/i.test(target)) {
+      try {
+        const streams = await extraerHlsP2pPlay(target, EMBED_TIMEOUT);
+        streams.forEach((url, i) => {
+          addHls(url, `Auto-Play HLS [LatinoX${streams.length > 1 ? ` ${i + 1}` : ''}]`);
+        });
+        if (hls.length) return hls;
+      } catch (e) {
+        console.warn('[DoramasLatinoX] p2pplay iframe:', e.message);
+      }
+    }
+
+    const directo = await extraerVideoDirecto(target);
+    if (directo) {
+      addHls(directo, 'Auto-Play HLS');
+      return hls;
+    }
+
+    let host = 'Externo';
+    try {
+      host = new URL(target).hostname.split('.')[0];
+    } catch (_) {}
+    addIframe(target, `Iframe (${host})${etiqueta ? ` ${etiqueta}` : ''}`);
+    return iframes;
   }
 
   async getEnlaces(urlEpisodio) {
     const targetUrl = urlEpisodio.startsWith('http') ? urlEpisodio : this.fixUrl(urlEpisodio);
-    const servidores = [];
+    const hlsOut = [];
+    const iframeOut = [];
     const vistos = new Set();
 
     try {
       const $ = await this.fetchHtml(targetUrl);
-      const opciones = $('li.dooplay_player_option');
+      const opciones = [];
 
-      for (let i = 0; i < opciones.length; i++) {
-        const opt = $(opciones[i]);
+      $('li.dooplay_player_option').each((i, el) => {
+        const opt = $(el);
         const post = opt.attr('data-post');
         const type = opt.attr('data-type');
         const nume = opt.attr('data-nume');
-        if (!post) continue;
+        if (post) opciones.push({ post, type, nume, idx: i + 1 });
+      });
 
-        try {
-          const apiUrl = `${this.baseUrl}/wp-json/dooplayer/v2/${post}/${type}/${nume}`;
-          const { data: apiData } = await axios.get(apiUrl, {
-            headers: this.headers(targetUrl),
-            timeout: config.httpTimeoutMs
-          });
-
-          let embedUrl = apiData?.embed_url?.replace(/\\\//g, '/');
-          if (!embedUrl) continue;
-
-          embedUrl = this.fixUrl(embedUrl) || embedUrl;
-          const resueltos = await this.resolverEmbed(embedUrl, targetUrl);
-
-          for (const srv of resueltos) {
-            if (!srv.url || vistos.has(srv.url)) continue;
-            vistos.add(srv.url);
-            servidores.push({
-              nombre: `${srv.nombre} (#${nume || i + 1})`,
-              url: srv.url
+      const embedJobs = await Promise.all(
+        opciones.map(async (opt) => {
+          try {
+            const apiUrl = `${this.baseUrl}/wp-json/dooplayer/v2/${opt.post}/${opt.type}/${opt.nume}`;
+            const { data: apiData } = await axios.get(apiUrl, {
+              headers: this.headers(targetUrl),
+              timeout: EMBED_TIMEOUT
             });
+            let embedUrl = apiData?.embed_url?.replace(/\\\//g, '/');
+            if (!embedUrl) return null;
+            embedUrl = this.fixUrl(embedUrl) || embedUrl;
+            const resueltos = await this.resolverEmbed(embedUrl, targetUrl, `#${opt.nume || opt.idx}`);
+            return { resueltos, nume: opt.nume || opt.idx };
+          } catch (e) {
+            console.warn('[DoramasLatinoX] dooplayer:', e.message);
+            return null;
           }
-        } catch (e) {
-          console.warn('[DoramasLatinoX] dooplayer:', e.message);
+        })
+      );
+
+      for (const job of embedJobs) {
+        if (!job) continue;
+        for (const srv of job.resueltos) {
+          if (!srv.url || vistos.has(srv.url)) continue;
+          vistos.add(srv.url);
+          const entry = {
+            nombre: srv.nombre.includes('#') ? srv.nombre : `${srv.nombre} (#${job.nume})`,
+            url: srv.url
+          };
+          if (/Auto-Play HLS/i.test(srv.nombre)) hlsOut.push(entry);
+          else iframeOut.push(entry);
         }
       }
     } catch (error) {
       console.error('[DoramasLatinoX] getEnlaces:', error.message);
     }
 
-    return servidores;
+    return [...hlsOut, ...iframeOut];
   }
 }
 
