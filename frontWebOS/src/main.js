@@ -99,7 +99,6 @@ const textoDetallePlay = document.getElementById('texto-detalle-play')
 
 const mainScroll = document.getElementById('main-scroll')
 
-let itemHero = null
 let providersMeta = {}
 let extensionesLista = []
 
@@ -164,34 +163,6 @@ function porcentajeProgresoEpisodio(progreso, ep) {
   const dur = progreso?.duracion || ep?.duracion
   if (!dur || dur <= 0 || !progreso?.tiempo) return null
   return Math.min(100, Math.round((progreso.tiempo / dur) * 100))
-}
-
-function mostrarHero(item) {
-  const hero = document.getElementById('hero-banner')
-  if (!hero || !item) {
-    if (hero) hero.classList.add('hidden')
-    return
-  }
-  
-  itemHero = item
-  hero.classList.remove('hidden')
-  document.getElementById('hero-img').src = ''
-  bindPosterImage(document.getElementById('hero-img'), item.poster || '')
-  document.getElementById('hero-title').textContent = item.titulo || 'Destacado'
-  document.getElementById('hero-synopsis').textContent = item.sinopsis || 'Explora este título y descubre mucho más contenido en tu catálogo de NexusMedia, siempre con la mejor calidad disponible.'
-  
-  const onClickHandler = () => {
-    abrirDetalles(item.url, item.provider, item.titulo, item.poster)
-  }
-  
-  document.getElementById('hero-play').onclick = onClickHandler
-  document.getElementById('hero-info').onclick = onClickHandler
-}
-
-function ocultarHero() {
-  const hero = document.getElementById('hero-banner')
-  if (hero) hero.classList.add('hidden')
-  itemHero = null
 }
 
 function marcarNavActiva(boton) {
@@ -409,7 +380,6 @@ function reiniciarEstadoCatalogo() {
   busquedaActual = ''
   filtrosActuales = {}
   if (inputBuscador) inputBuscador.value = ''
-  itemHero = null
   providersMeta = {}
   extensionesLista = []
   episodiosDelAnimeActual = []
@@ -421,7 +391,6 @@ function reiniciarEstadoCatalogo() {
 
   if (contenedorFiltros) contenedorFiltros.classList.add('hidden')
   if (contenedorPaginacion) contenedorPaginacion.classList.add('hidden')
-  ocultarHero()
   ocultarAtras()
 
   if (modalDetalles && !modalDetalles.classList.contains('hidden')) {
@@ -461,7 +430,6 @@ async function cargarInicio() {
   contenedorFiltros.classList.add('hidden')
   tituloSeccion.textContent = '🏠 Inicio'
   tituloSeccion.classList.add('hidden') // en el Inicio el título estorba (van las filas directas)
-  ocultarHero()
   ocultarAtras()
   marcarNavActiva(btnInicio)
   if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' })
@@ -481,13 +449,6 @@ async function cargarInicioFilas() {
 
     aplicarLayoutFilas()
     gridCatalogo.innerHTML = ''
-
-    // Asignar Hero al primer item de la primera fila si existe
-    if (filas[0] && filas[0].items && filas[0].items.length > 0) {
-      mostrarHero(filas[0].items[0])
-    } else {
-      ocultarHero()
-    }
 
     // 1) Acceso destacado a la TV en vivo (arriba del todo)
     gridCatalogo.appendChild(crearSeccionTv())
@@ -599,7 +560,6 @@ async function cargarCategoria(genLabel) {
   contenedorFiltros.classList.add('hidden')
   tituloSeccion.textContent = `🎞️ ${genLabel}`
   tituloSeccion.classList.remove('hidden')
-  ocultarHero()
   mostrarAtras()
   marcarNavActiva(null)
   if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' })
@@ -655,7 +615,6 @@ async function cargarCatalogo(idExtension, nombreExtension) {
   const meta = metaDe(idExtension)
   tituloSeccion.textContent = `${meta.icono} ${nombreExtension}`
   tituloSeccion.classList.remove('hidden')
-  ocultarHero()
   mostrarAtras()
   if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' })
   await cargarFiltrosDinamicos(idExtension)
@@ -804,7 +763,6 @@ btnFavoritos.addEventListener('click', () => {
   tituloSeccion.classList.remove('hidden')
   contenedorFiltros.classList.add('hidden')
   contenedorPaginacion.classList.add('hidden')
-  ocultarHero()
   mostrarAtras()
   marcarNavActiva(btnFavoritos)
   // Excluir los canales de TV: tienen su propia sección de favoritos
@@ -817,7 +775,6 @@ btnHistorial.addEventListener('click', () => {
   tituloSeccion.classList.remove('hidden')
   contenedorFiltros.classList.add('hidden')
   contenedorPaginacion.classList.add('hidden')
-  ocultarHero()
   mostrarAtras()
   marcarNavActiva(btnHistorial)
   // Excluir canales de TV: tienen su propia sección de "Continuar"
@@ -831,7 +788,6 @@ btnBusquedaGlobal.addEventListener('click', () => {
   tituloSeccion.classList.remove('hidden')
   contenedorFiltros.classList.add('hidden')
   contenedorPaginacion.classList.add('hidden')
-  ocultarHero()
   mostrarAtras()
   marcarNavActiva(btnBusquedaGlobal)
   gridCatalogo.innerHTML = `
@@ -850,7 +806,6 @@ inputBuscador.addEventListener('keypress', async (e) => {
 
     contenedorFiltros.classList.add('hidden')
     contenedorPaginacion.classList.add('hidden')
-    ocultarHero()
 
     if (extensionActual === 'global' || extensionActual === 'inicio') {
       const plano = extensionActual === 'inicio'
