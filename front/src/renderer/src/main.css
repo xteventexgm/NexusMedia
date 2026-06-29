@@ -1,0 +1,920 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --brand: #e50914;
+  --brand-glow: rgba(229, 9, 20, 0.45);
+  --panel: #121216;
+  --panel-2: #1a1a21;
+  --line: rgba(255, 255, 255, 0.08);
+}
+
+body {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(229, 9, 20, 0.14), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(229, 9, 20, 0.06), transparent),
+    #08080a;
+}
+
+@layer components {
+  /* ── Navegación ── */
+  .nav-item {
+    @apply rounded-xl text-sm font-medium text-gray-300 transition-all duration-200;
+  }
+  .nav-item:hover {
+    @apply text-white bg-white/[0.07];
+  }
+  .nav-activa {
+    @apply text-white bg-white/[0.09];
+  }
+
+  .search-wrap {
+    @apply relative;
+  }
+
+  .search-icon {
+    @apply absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none text-gray-400;
+  }
+
+  .search-input {
+    @apply bg-black/50 border border-white/10 text-white text-sm pl-9 pr-4 py-2.5 rounded-full backdrop-blur-md transition-all duration-300 w-full;
+    @apply focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand/30 focus:bg-black/70;
+  }
+
+  .btn-brand {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-bold text-white transition-all duration-200;
+    @apply bg-gradient-to-r from-brand to-brand-dark hover:from-brand-light hover:to-brand;
+    @apply shadow-lg shadow-brand/25 hover:shadow-brand/40 hover:scale-[1.02] active:scale-[0.98];
+  }
+
+  .btn-surface {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold text-gray-200 transition-all duration-200;
+    @apply bg-surface2 border border-white/10 hover:bg-white/[0.08] hover:border-white/20 hover:text-white;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-medium text-gray-400 transition-all duration-200;
+    @apply hover:text-white hover:bg-white/[0.06];
+  }
+
+  /* ── Secciones del inicio ── */
+  .section-title {
+    @apply text-base md:text-lg font-bold tracking-tight flex items-center gap-2 px-1 mb-2 text-white/90;
+  }
+
+  /* ── Tarjetas estilo Netflix (póster limpio + título abajo) ── */
+  .media-card {
+    @apply relative cursor-pointer transition-transform duration-300 ease-out;
+  }
+
+  .media-card__img-wrap {
+    @apply relative rounded-md overflow-hidden bg-[#2a2a2a] shadow-lg;
+    @apply ring-1 ring-white/[0.04] transition-all duration-300;
+  }
+
+  .media-card:hover .media-card__img-wrap,
+  .media-card.foco-tv .media-card__img-wrap {
+    @apply ring-2 ring-white/80 shadow-2xl;
+  }
+
+  .media-card__img {
+    @apply w-full h-full object-cover transition-transform duration-500;
+  }
+
+  .media-card:hover .media-card__img,
+  .media-card.foco-tv .media-card__img {
+    @apply scale-105;
+  }
+
+  .media-card__overlay {
+    @apply absolute inset-0 bg-black/0 transition-colors duration-300;
+    @apply flex items-center justify-center opacity-0;
+  }
+
+  .media-card:hover .media-card__overlay,
+  .media-card.foco-tv .media-card__overlay {
+    @apply bg-black/35 opacity-100;
+  }
+
+  .media-card__play {
+    @apply w-11 h-11 rounded-full bg-white/95 text-black flex items-center justify-center text-lg shadow-xl;
+    @apply scale-75 opacity-0 transition-all duration-300;
+  }
+
+  .media-card:hover .media-card__play,
+  .media-card.foco-tv .media-card__play {
+    @apply scale-100 opacity-100;
+  }
+
+  .media-card__label {
+    @apply mt-2 text-[13px] font-medium text-gray-400 truncate px-0.5 transition-colors duration-200;
+  }
+
+  .media-card:hover .media-card__label,
+  .media-card.foco-tv .media-card__label {
+    @apply text-white;
+  }
+
+  /* Carrusel con fade lateral */
+  .carousel-row {
+    @apply relative overflow-visible;
+  }
+
+  .carousel-row::before,
+  .carousel-row::after {
+    content: '';
+    @apply absolute top-0 bottom-0 w-8 md:w-16 z-20 pointer-events-none;
+  }
+
+  .carousel-row::before {
+    left: 0;
+    background: linear-gradient(to right, #08080a, transparent);
+  }
+
+  .carousel-row::after {
+    right: 0;
+    background: linear-gradient(to left, #08080a, transparent);
+  }
+
+  /* Banner TV */
+  .tv-banner {
+    @apply relative w-full overflow-hidden rounded-lg text-left transition-transform duration-300;
+    @apply ring-1 ring-white/10 hover:ring-white/30;
+  }
+
+  .tv-banner__bg {
+    @apply absolute inset-0 bg-gradient-to-r from-sky-900/80 via-sky-800/40 to-transparent;
+  }
+
+  .extension-strip {
+    @apply flex gap-2 overflow-x-auto scroll-smooth;
+    @apply py-3 px-2 -mx-2;
+    scrollbar-width: none;
+  }
+  .extension-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .extension-chip {
+    @apply shrink-0 flex items-center gap-2.5 px-4 py-2.5 rounded-md font-semibold text-sm;
+    @apply bg-white/10 hover:bg-white/15 ring-1 ring-white/10 transition-all duration-200;
+  }
+
+  /* ── Paginación ── */
+  .btn-page {
+    @apply px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200;
+    @apply bg-surface2 border border-white/10 text-gray-200;
+    @apply hover:bg-brand hover:border-brand hover:text-white hover:shadow-lg hover:shadow-brand/20;
+    @apply disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface2 disabled:hover:border-white/10 disabled:hover:shadow-none;
+  }
+
+  /* ── Modal detalles Netflix ── */
+  .modal-backdrop {
+    @apply bg-black/85 backdrop-blur-sm;
+  }
+
+  .detail-page {
+    animation: detailFadeIn 0.35s ease;
+  }
+
+  .detail-hero-netflix {
+    @apply relative w-full overflow-visible;
+    height: clamp(280px, 48vh, 480px);
+  }
+
+  .detail-hero-netflix__bg {
+    @apply absolute inset-0 bg-cover bg-top;
+  }
+
+  .detail-hero-netflix__vignette {
+    @apply absolute inset-0;
+    background:
+      linear-gradient(77deg, rgba(20, 20, 20, 0.95) 30%, transparent 70%),
+      linear-gradient(0deg, #141414 0%, transparent 50%),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, transparent 30%);
+  }
+
+  .detail-close-netflix {
+    @apply absolute top-4 right-4 md:top-6 md:right-6 z-30;
+    @apply w-10 h-10 rounded-full flex items-center justify-center;
+    @apply bg-[#181818] text-white hover:bg-[#2a2a2a] transition-colors duration-200;
+  }
+
+  .detail-hero-netflix__content {
+    @apply absolute bottom-0 left-0 right-0 z-20 px-5 md:px-10 pb-8 max-w-4xl;
+  }
+
+  .detail-hero-netflix__title {
+    @apply text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight mb-3;
+    text-shadow: 0 2px 24px rgba(0, 0, 0, 0.9);
+  }
+
+  .detail-meta-line {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-gray-300;
+  }
+
+  .meta-pill {
+    @apply inline-flex items-center gap-1.5 font-semibold;
+  }
+
+  .meta-pill--status {
+    @apply text-green-400 font-bold uppercase text-xs tracking-wide;
+  }
+
+  .meta-genres {
+    @apply text-gray-400;
+  }
+
+  .detail-body-netflix {
+    @apply px-5 md:px-10 pb-16 pt-2 max-w-4xl overflow-visible;
+  }
+
+  .btn-play-white {
+    @apply inline-flex items-center gap-2.5 px-7 py-2.5 rounded-md font-bold text-base bg-white;
+    color: #141414 !important;
+    @apply hover:bg-white/90 transition-all duration-200;
+  }
+
+  .btn-play-white__icon {
+    @apply text-sm;
+  }
+
+  .detail-toolbar {
+    @apply flex flex-wrap items-center gap-3 mb-6 py-2 overflow-visible;
+  }
+
+  .btn-round-icon {
+    @apply w-10 h-10 rounded-full flex items-center justify-center text-xl font-light;
+    @apply bg-[#2a2a2a] text-white border border-white/20 hover:border-white/50 transition-all duration-200;
+  }
+
+  .btn-round-icon.is-active {
+    @apply bg-white/15 border-white;
+  }
+
+  .detail-synopsis-netflix {
+    @apply text-base text-gray-300 leading-relaxed mb-10 max-w-3xl;
+  }
+
+  .detail-episodes-block {
+    @apply border-t border-white/10 pt-8;
+  }
+
+  .detail-episodes-head {
+    @apply flex items-center gap-3 mb-5;
+  }
+
+  .detail-episodes-head h3 {
+    @apply text-xl font-bold text-white;
+  }
+
+  .detail-ep-count {
+    @apply text-xs text-gray-500 font-medium;
+  }
+
+  /* Lista vertical de episodios (Netflix) */
+  .episodes-list {
+    @apply flex flex-col gap-1;
+  }
+
+  .ep-row {
+    @apply relative flex items-center gap-4 w-full text-left rounded-md px-3 py-3;
+    @apply border border-transparent transition-all duration-200 text-white;
+    @apply hover:bg-white/[0.06];
+  }
+
+  .ep-row__num {
+    @apply w-7 text-center text-2xl font-light text-gray-500 shrink-0 tabular-nums;
+  }
+
+  .ep-row__thumb {
+    @apply relative w-28 sm:w-32 aspect-video rounded overflow-hidden bg-[#2a2a2a] shrink-0;
+  }
+
+  .ep-row__thumb img {
+    @apply w-full h-full object-cover;
+  }
+
+  .ep-row__thumb-play {
+    @apply absolute inset-0 flex items-center justify-center text-white text-xl;
+    @apply bg-black/40 opacity-0 transition-opacity duration-200;
+  }
+
+  .ep-row:hover .ep-row__thumb-play,
+  .ep-row.foco-tv .ep-row__thumb-play {
+    @apply opacity-100;
+  }
+
+  .ep-row__body {
+    @apply flex-1 min-w-0 py-0.5;
+  }
+
+  .ep-row__title {
+    @apply text-sm sm:text-base font-semibold truncate;
+    color: #f3f4f6 !important;
+  }
+
+  .ep-row__status {
+    @apply text-xs font-medium mt-1;
+  }
+
+  .ep-row__status--watched {
+    @apply text-green-400;
+  }
+
+  .ep-row__status--progress {
+    @apply text-yellow-400;
+  }
+
+  .ep-row__bar-wrap {
+    @apply mt-2 h-0.5 bg-white/10 rounded-full overflow-hidden;
+  }
+
+  .ep-row__bar {
+    @apply h-full bg-brand rounded-full;
+  }
+
+  .season-picker {
+    @apply flex flex-wrap items-center gap-3 mb-5 pb-4 border-b border-white/10;
+  }
+
+  .filter-select {
+    @apply bg-[#2a2a2a] border border-white/20 text-white text-sm px-3 py-2.5 rounded-md outline-none;
+    @apply focus:ring-2 focus:ring-white/50 cursor-pointer min-w-[140px];
+    color: #fff !important;
+  }
+
+  .filter-select option {
+    @apply bg-[#2a2a2a] text-white;
+  }
+
+  /* ── Modal reanudar ── */
+  .resume-card {
+    @apply relative bg-[#141418] p-8 rounded-2xl text-center max-w-md w-full mx-4;
+    @apply border border-white/10 shadow-2xl;
+    background-image: radial-gradient(ellipse at top, rgba(229, 9, 20, 0.12), transparent 60%);
+  }
+
+  .resume-title {
+    @apply text-2xl font-extrabold text-white mb-2 tracking-tight;
+  }
+
+  .resume-desc {
+    @apply text-gray-400 mb-7 text-sm leading-relaxed;
+  }
+
+  .resume-actions {
+    @apply flex flex-col gap-2.5;
+  }
+
+  /* ── Estados vacíos / carga ── */
+  .state-box {
+    @apply col-span-full text-center py-10 px-6 rounded-2xl border border-white/10 bg-surface2/40;
+  }
+
+  .state-box--purple {
+    @apply border-purple-500/25 bg-purple-950/30;
+  }
+
+  .detail-loading {
+    @apply flex flex-col items-center justify-center py-16 gap-4 text-gray-400;
+  }
+
+  .detail-loading-spinner {
+    @apply w-10 h-10 rounded-full border-2 border-white/10 border-t-brand animate-spin;
+  }
+}
+
+/* Scrollbar minimalista */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a33;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a46;
+  background-clip: content-box;
+}
+
+/* Animaciones */
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.slide-in {
+  animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes popIn {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.pop-in {
+  animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(100deg, #16161d 30%, #23232c 50%, #16161d 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Carruseles del inicio — espacio para que el foco no se recorte */
+#grid-catalogo.flex {
+  overflow: visible;
+}
+
+.carousel-item-wrap {
+  padding: 10px 6px;
+  box-sizing: content-box;
+}
+
+.fila-scroll {
+  scrollbar-width: none;
+  padding: 12px 8px 16px;
+  margin: -8px 0;
+}
+.carousel-row .fila-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.fila-scroll::-webkit-scrollbar {
+  height: 0;
+  display: none;
+}
+
+/* Reveal de info en la tarjeta — ya no se usa overlay, título va abajo */
+
+/* Foco estilo Netflix: anillo en póster, sin recorte */
+.media-card.foco-tv {
+  outline: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+  z-index: 30 !important;
+  position: relative;
+}
+
+.media-card.foco-tv .media-card__img-wrap {
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 22px rgba(255, 255, 255, 0.35);
+  outline: none;
+}
+
+/* Chips de extensiones: foco blanco sin escala (evita recorte) */
+.extension-chip.foco-tv,
+.tv-banner.foco-tv {
+  outline: none !important;
+  transform: none !important;
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 18px rgba(255, 255, 255, 0.3) !important;
+  z-index: 20 !important;
+}
+
+.ep-row.foco-tv {
+  outline: none !important;
+  transform: none !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.btn-play-white.foco-tv {
+  outline: 3px solid #fff !important;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.25) !important;
+  transform: scale(1.04);
+}
+
+.btn-round-icon.foco-tv,
+.filter-select.foco-tv,
+.detail-close-netflix.foco-tv {
+  outline: 3px solid #fff !important;
+  outline-offset: 3px;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3) !important;
+  transform: none;
+}
+
+.foco-tv.foco-player {
+  outline: 3px solid #fff !important;
+  outline-offset: 3px;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.45) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  transform: scale(1.08);
+}
+
+#progress-bar.foco-tv {
+  box-shadow: 0 0 0 2px #fff;
+  outline: none;
+  transform: none;
+}
+
+.foco-tv.foco-nav,
+.foco-tv.foco-edicion,
+.foco-item.foco-tv:not(.media-card):not(.ep-row):not(.extension-chip):not(.tv-banner) {
+  outline: 3px solid #e50914 !important;
+  outline-offset: 3px;
+  box-shadow:
+    0 0 0 1px rgba(229, 9, 20, 0.5),
+    0 0 28px rgba(229, 9, 20, 0.55),
+    0 8px 32px rgba(0, 0, 0, 0.45) !important;
+  transform: scale(1.03);
+  z-index: 25 !important;
+}
+
+@keyframes detailFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Barra superior al hacer scroll */
+#top-nav.nav-solid {
+  background: rgba(10, 10, 12, 0.96);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Range del reproductor */
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #e50914;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(229, 9, 20, 0.8);
+}
+input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #e50914;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 6px rgba(229, 9, 20, 0.8);
+}
+
+#progress-bar::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #e50914;
+  cursor: pointer;
+}
+
+/* ── Reproductor estilo streaming ── */
+.player-controls-shell {
+  padding: 4rem 1.75rem 1.5rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.55) 55%, transparent 100%);
+  gap: 0.85rem;
+}
+
+.player-progress {
+  height: 4px;
+  border-radius: 999px;
+  transition: height 0.15s ease;
+}
+
+.player-progress:hover,
+.player-progress.foco-tv {
+  height: 6px;
+}
+
+.player-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: #fff;
+}
+
+.player-controls-left {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.player-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: background 0.15s ease, transform 0.15s ease, color 0.15s ease;
+}
+
+.player-btn:hover,
+.player-btn.foco-tv {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.player-btn--primary {
+  width: 3rem;
+  height: 3rem;
+  background: rgba(229, 9, 20, 0.85);
+  border-color: rgba(229, 9, 20, 0.5);
+}
+
+.player-btn--primary:hover,
+.player-btn--primary.foco-tv {
+  background: #e50914;
+}
+
+.player-time {
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.75);
+  margin-left: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-key-hint {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+#top-bar-reproductor {
+  padding: 1.25rem 1.75rem;
+}
+
+#btn-cerrar-reproductor {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+#selector-servidor {
+  min-width: 8rem;
+  font-size: 0.85rem;
+}
+
+.player-ep-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.72);
+  display: none;
+  align-items: stretch;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.player-ep-overlay.is-open {
+  display: flex;
+  pointer-events: auto;
+}
+
+.player-ep-panel {
+  width: min(22rem, 92vw);
+  height: 100%;
+  background: linear-gradient(180deg, #141418 0%, #0c0c0f 100%);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.55);
+}
+
+.player-ep-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.25rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.player-ep-head h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.player-ep-close {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.player-ep-lista {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.player-ep-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.5rem;
+  color: rgba(255, 255, 255, 0.88);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.player-ep-item:hover,
+.player-ep-item.foco-tv {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.player-ep-item--active {
+  background: rgba(229, 9, 20, 0.18);
+  border-color: rgba(229, 9, 20, 0.45);
+}
+
+.player-ep-item__num {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.player-ep-item__title {
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Foco TV / teclado ── */
+.foco-tv {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.foco-tv.foco-edicion {
+  outline-color: #eab308 !important;
+}
+
+.foco-tv.foco-nav {
+  background: rgba(229, 9, 20, 0.22) !important;
+  color: #fff !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Pantalla de carga ── */
+#splash-carga {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  background:
+    radial-gradient(900px 500px at 50% 30%, rgba(229, 9, 20, 0.18), transparent 65%),
+    #050508;
+  transition: opacity 0.55s ease, visibility 0.55s ease;
+}
+
+#splash-carga.splash-out {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.splash-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem, 12vw, 5.5rem);
+  letter-spacing: 0.08em;
+  line-height: 1;
+  animation: splashPulse 2s ease-in-out infinite;
+}
+
+.splash-loader {
+  width: min(280px, 70vw);
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.splash-loader-bar {
+  height: 100%;
+  width: 40%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #b20710, #e50914, #ff4d55);
+  animation: splashSlide 1.2s ease-in-out infinite;
+}
+
+@keyframes splashPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.88;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes splashSlide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}

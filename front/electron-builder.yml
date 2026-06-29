@@ -1,0 +1,44 @@
+appId: com.nexusmedia.app
+productName: NexusMedia
+directories:
+  buildResources: build
+
+extraResources:
+  - from: iniciar.bat
+    to: iniciar.bat
+  - from: src/servidor
+    to: src/servidor
+    filter:
+      - '**/*'
+      - '!tv_cache.json'
+  - from: node_modules
+    to: node_modules
+
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - out/**/*
+
+asar: true
+
+win:
+  executableName: NexusMedia
+  target: nsis
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  runAfterFinish: true
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  installerLanguages:
+    - es_ES
+    - en_US

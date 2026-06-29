@@ -1,0 +1,48 @@
+{
+  "name": "nexusmedia",
+  "version": "1.0.0",
+  "description": "Tu app de streaming profesional",
+  "main": "./out/main/index.js",
+  "author": "TuNombre",
+  "scripts": {
+    "format": "prettier --write .",
+    "lint": "eslint --cache .",
+    "start": "electron-vite preview",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "postinstall": "electron-builder install-app-deps",
+    "build:win": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.2",
+    "@electron-toolkit/utils": "^4.0.0",
+    "axios": "^1.17.0",
+    "cheerio": "^1.2.0",
+    "clsx": "^2.1.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "framer-motion": "^12.42.0",
+    "hls.js": "^1.6.16",
+    "lucide-react": "^1.21.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.0",
+    "tailwind-merge": "^3.6.0",
+    "tcp-port-used": "^1.0.3",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@electron-toolkit/eslint-config": "^2.1.0",
+    "@electron-toolkit/eslint-config-prettier": "^3.0.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "autoprefixer": "^10.5.2",
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^5.0.0",
+    "eslint": "^9.39.1",
+    "postcss": "^8.5.15",
+    "prettier": "^3.7.4",
+    "tailwindcss": "^3.4.19",
+    "vite": "^7.2.6"
+  }
+}
