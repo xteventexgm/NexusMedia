@@ -619,12 +619,15 @@ body {
   }
 }
 
-/* Barra superior al hacer scroll */
-#top-nav.nav-solid {
+/* Barra superior — siempre opaca para que el contenido no se vea al hacer scroll */
+#top-nav {
   background: rgba(10, 10, 12, 0.96);
   backdrop-filter: blur(10px);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.55);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#top-nav.nav-solid {
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.55);
 }
 
 /* Range del reproductor */
