@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NexusMedia</title>
+  </head>
+
+  <body class="bg-base text-white h-screen flex flex-col overflow-hidden font-sans antialiased">
+    <!-- Pantalla de carga inicial -->
+    <div id="splash-carga" aria-live="polite" aria-busy="true">
+      <div class="splash-logo">
+        <span class="text-brand">NEXUS</span><span class="text-white">MEDIA</span>
+      </div>
+      <div class="splash-loader" role="progressbar" aria-label="Cargando">
+        <div class="splash-loader-bar"></div>
+      </div>
+    </div>
+
+    <!-- ===================== BARRA SUPERIOR (estilo Netflix) ===================== -->
+    <header
+      id="top-nav"
+      class="fixed top-0 inset-x-0 z-40 flex items-center gap-1 px-5 md:px-8 py-3.5 transition-all duration-300 bg-gradient-to-b from-black/90 via-black/50 to-transparent"
+    >
+      <h1 class="font-display text-2xl md:text-[1.75rem] text-brand tracking-wider leading-none mr-4 select-none shrink-0">
+        NEXUS<span class="text-white">MEDIA</span>
+      </h1>
+
+      <nav class="flex items-center gap-0.5">
+        <button
+          id="btn-atras"
+          class="nav-item hidden px-3 py-2 items-center gap-2 flex"
+        >
+          <span class="text-base leading-none">←</span> <span class="hidden sm:inline">Atrás</span>
+        </button>
+
+        <button
+          id="btn-inicio"
+          class="nav-item nav-activa px-3 py-2 flex items-center gap-2"
+        >
+          <span>🏠</span> <span class="hidden sm:inline">Inicio</span>
+        </button>
+        <button
+          id="btn-favoritos"
+          class="nav-item px-3 py-2 flex items-center gap-2"
+        >
+          <span>⭐</span> <span class="hidden sm:inline">Favoritos</span>
+        </button>
+        <button
+          id="btn-historial"
+          class="nav-item px-3 py-2 flex items-center gap-2"
+        >
+          <span>⏳</span> <span class="hidden md:inline">Continuar</span>
+        </button>
+        <button
+          id="btn-ajustes"
+          class="nav-item px-3 py-2 flex items-center gap-2 foco-item"
+          title="Ajustes del servidor"
+        >
+          <span>⚙</span> <span class="hidden md:inline">Ajustes</span>
+        </button>
+      </nav>
+
+      <div class="ml-auto flex items-center gap-2.5">
+        <div class="relative search-wrap">
+          <span class="search-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+            </svg>
+          </span>
+          <input
+            type="text"
+            id="input-buscador"
+            placeholder="Buscar..."
+            class="search-input w-36 md:w-44 focus:w-52 md:focus:w-72"
+          />
+        </div>
+        <button
+          id="btn-busqueda-global"
+          class="btn-brand px-4 py-2.5 text-sm shrink-0"
+        >
+          Buscar
+        </button>
+      </div>
+    </header>
+
+    <!-- ===================== CONTENIDO PRINCIPAL ===================== -->
+    <main id="main-scroll" class="flex-1 overflow-y-auto relative">
+        
+        <!-- Hero Banner Premium -->
+        <div id="hero-banner" class="hidden relative w-full h-[60vh] min-h-[400px] mb-8 group overflow-hidden">
+            <div class="absolute inset-0 w-full h-full">
+                <img id="hero-img" class="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" src="" alt="Hero Background">
+                <div class="absolute inset-0 bg-gradient-to-t from-base via-base/80 to-transparent"></div>
+                <div class="absolute inset-0 bg-gradient-to-r from-base via-base/50 to-transparent"></div>
+            </div>
+            <div class="absolute bottom-0 left-0 w-full p-8 md:p-16 flex flex-col justify-end z-10">
+                <h2 id="hero-title" class="text-4xl md:text-6xl font-black text-white drop-shadow-lg mb-4">Título</h2>
+                <p id="hero-synopsis" class="text-gray-300 max-w-2xl text-sm md:text-base line-clamp-3 mb-6 drop-shadow-md">Sinopsis</p>
+                <div class="flex gap-4">
+                    <button id="hero-play" class="btn-brand px-8 py-3 text-lg">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Reproducir
+                    </button>
+                    <button id="hero-info" class="btn-surface px-8 py-3 text-lg">Más info</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="zona-contenido" class="pb-8 max-w-[1920px] mx-auto w-full px-5 md:px-10">
+          <h2 id="titulo-seccion" class="text-2xl md:text-3xl font-extrabold tracking-tight truncate mb-6 mt-[4.5rem]">Explorar</h2>
+          <div id="contenedor-filtros" class="flex flex-wrap gap-2.5 mb-6 hidden"></div>
+
+          <div
+            id="grid-catalogo"
+            class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5"
+          ></div>
+
+          <div id="contenedor-paginacion" class="flex justify-center items-center gap-4 mt-12 mb-4 hidden">
+            <button id="btn-pagina-anterior" class="btn-page">⬅ Anterior</button>
+            <span id="texto-pagina" class="font-bold text-sm text-gray-500 tabular-nums">Página 1</span>
+            <button id="btn-pagina-siguiente" class="btn-page">Siguiente ➡</button>
+          </div>
+        </div>
+    </main>
+
+    <!-- ===================== MODAL DETALLES (estilo Netflix) ===================== -->
+    <div id="modal-detalles" class="modal-backdrop fixed inset-0 z-50 hidden overflow-y-auto">
+      <div id="panel-detalles" class="detail-page min-h-full bg-[#141414]">
+        <!-- Hero cinematográfico -->
+        <div class="detail-hero-netflix">
+          <div id="detalle-hero-bg" class="detail-hero-netflix__bg"></div>
+          <div class="detail-hero-netflix__vignette"></div>
+          <button id="btn-cerrar-modal" class="detail-close-netflix" title="Cerrar (Esc)">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+          <div class="detail-hero-netflix__content">
+            <h2 id="detalle-titulo" class="detail-hero-netflix__title">Cargando...</h2>
+            <div id="detalle-metadata" class="detail-meta-line">
+              <span id="detalle-provider" class="meta-pill hidden"></span>
+              <span id="detalle-estado" class="meta-pill meta-pill--status hidden"></span>
+              <span id="detalle-calificacion" class="meta-pill hidden items-center"></span>
+              <span id="detalle-año" class="meta-pill hidden"></span>
+              <span id="detalle-idiomas" class="meta-pill hidden items-center bg-brand/20 text-brand border border-brand/50 shadow-sm" title="Idiomas disponibles"></span>
+              <span id="detalle-generos" class="meta-genres hidden"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cuerpo -->
+        <div class="detail-body-netflix">
+          <div class="detail-toolbar">
+            <button id="btn-detalle-play" type="button" class="btn-play-white hidden">
+              <span class="btn-play-white__icon">▶</span>
+              <span id="texto-detalle-play">Reproducir</span>
+            </button>
+            <button id="btn-detalle-fav" type="button" class="btn-round-icon hidden" title="Favoritos">
+              <span id="icono-fav-detalle">+</span>
+            </button>
+            <button id="btn-detalle-reset" type="button" class="btn-round-icon hidden" title="Borrar progreso">
+              <span>↺</span>
+            </button>
+          </div>
+
+          <p id="detalle-sinopsis" class="detail-synopsis-netflix"></p>
+          <img id="detalle-poster" src="" alt="" class="sr-only" aria-hidden="true" />
+
+          <section class="detail-episodes-block">
+            <div class="detail-episodes-head">
+              <h3>Episodios</h3>
+              <span id="detalle-ep-count" class="detail-ep-count hidden">0</span>
+            </div>
+            <div id="lista-episodios" class="episodes-list">
+              <div class="detail-loading">
+                <div class="detail-loading-spinner"></div>
+                <p class="text-sm">Cargando información...</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== REPRODUCTOR ===================== -->
+    <div id="modal-reproductor" class="fixed inset-0 bg-black z-[60] hidden flex flex-col">
+      <div
+        id="top-bar-reproductor"
+        class="absolute top-0 w-full p-5 flex justify-between items-center bg-gradient-to-b from-black/90 to-transparent z-50 transition-opacity duration-300"
+      >
+        <button
+          id="btn-cerrar-reproductor"
+          class="text-white hover:text-brand text-4xl font-bold drop-shadow-lg leading-none"
+        >
+          &times;
+        </button>
+        <h2
+          id="titulo-reproductor"
+          class="text-white font-bold text-lg drop-shadow-md truncate max-w-lg text-center absolute left-1/2 -translate-x-1/2"
+        >
+          Reproduciendo...
+        </h2>
+        <select
+          id="selector-servidor"
+          class="bg-zinc-900 text-white p-2 rounded-lg outline-none focus:ring-2 focus:ring-brand cursor-pointer hidden border border-white/10 shadow-lg"
+        ></select>
+      </div>
+
+      <div class="flex-1 flex items-center justify-center bg-black relative w-full h-full">
+        <video id="video-player" class="w-full h-full outline-none hidden object-contain"></video>
+        <iframe id="iframe-player" class="w-full h-full hidden border-none" allowfullscreen></iframe>
+
+        <p
+          id="mensaje-reproductor"
+          class="text-white text-center absolute z-40 hidden bg-black/75 px-6 py-4 rounded-lg drop-shadow-lg font-bold animate-pulse"
+        ></p>
+
+        <div
+          id="custom-controls"
+          class="player-controls-shell absolute bottom-0 w-full z-50 hidden flex-col transition-opacity duration-300"
+        >
+          <input
+            type="range"
+            id="progress-bar"
+            value="0"
+            step="0.1"
+            class="player-progress w-full cursor-pointer appearance-none outline-none"
+            style="background: linear-gradient(to right, #e50914 0%, #4b5563 0%)"
+          />
+          <div class="player-controls-bar">
+            <div class="player-controls-left">
+              <button
+                id="btn-prev-ep"
+                type="button"
+                class="player-btn hidden"
+                title="Capítulo anterior"
+              >
+                <svg fill="currentColor" viewBox="0 0 24 24" class="w-6 h-6">
+                  <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+                </svg>
+              </button>
+
+              <button id="btn-play-pause" type="button" class="player-btn player-btn--primary" title="Reproducir / Pausar">
+                <svg id="icon-play" class="hidden w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <svg id="icon-pause" class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+              </button>
+
+              <button
+                id="btn-next-ep"
+                type="button"
+                class="player-btn hidden"
+                title="Siguiente capítulo"
+              >
+                <svg fill="currentColor" viewBox="0 0 24 24" class="w-6 h-6">
+                  <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                </svg>
+              </button>
+
+              <button id="btn-ep-lista" type="button" class="player-btn hidden" title="Lista de capítulos">
+                <svg fill="currentColor" viewBox="0 0 24 24" class="w-6 h-6">
+                  <path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z" />
+                </svg>
+              </button>
+
+              <span id="time-display" class="player-time">00:00 / 00:00</span>
+            </div>
+
+            <button id="btn-fullscreen" type="button" class="player-btn" title="Pantalla completa">
+              <svg fill="currentColor" viewBox="0 0 24 24" class="w-6 h-6">
+                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+              </svg>
+            </button>
+          </div>
+          <p id="player-key-hint" class="player-key-hint">← → buscar · ↓ controles</p>
+        </div>
+
+        <div id="player-ep-overlay" class="player-ep-overlay" aria-hidden="true">
+          <div class="player-ep-panel">
+            <div class="player-ep-head">
+              <h3 id="player-ep-titulo">Capítulos</h3>
+              <button id="player-ep-cerrar" type="button" class="player-ep-close" title="Cerrar">&times;</button>
+            </div>
+            <div id="player-ep-lista" class="player-ep-lista"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== TV EN VIVO (IPTV estilo Smarters) ===================== -->
+    <div id="tv-app" class="fixed inset-0 z-[55] hidden flex-col bg-base">
+      <!-- Cabecera -->
+      <header
+        class="flex items-center gap-4 px-6 py-3 border-b border-white/10 bg-gradient-to-b from-[#101015] to-[#0a0a0c]"
+      >
+        <button
+          id="tv-btn-volver"
+          class="text-gray-300 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg transition font-bold flex items-center gap-2"
+        >
+          ← Volver
+        </button>
+        <h2 class="text-xl font-bold flex items-center gap-2">
+          <span class="text-2xl">📡</span> TV en Vivo
+        </h2>
+        <div class="relative ml-auto">
+          <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">🔍</span>
+          <input
+            type="text"
+            id="tv-buscador"
+            placeholder="Buscar canal..."
+            class="bg-surface border border-white/10 text-white pl-10 pr-4 py-2 w-64 focus:w-80 rounded-full focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition-all"
+          />
+        </div>
+      </header>
+
+      <!-- Cuerpo: categorías + canales -->
+      <div class="flex flex-1 overflow-hidden">
+        <aside
+          id="tv-lista-categorias"
+          class="w-72 shrink-0 border-r border-white/10 overflow-y-auto p-3 flex flex-col gap-1.5 bg-[#0d0d11]"
+        >
+          <p class="text-xs text-gray-600 px-2">Cargando categorías...</p>
+        </aside>
+
+        <section class="flex-1 flex flex-col overflow-hidden">
+          <div class="px-6 py-3 border-b border-white/5 flex items-center justify-between">
+            <h3 id="tv-titulo-categoria" class="text-lg font-bold">Todos los canales</h3>
+            <span id="tv-contador-canales" class="text-sm text-gray-500"></span>
+          </div>
+          <div id="tv-grid-canales" class="flex-1 overflow-y-auto p-6 content-start grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-5">
+            <p class="text-gray-500 col-span-full">Selecciona una categoría.</p>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ===================== REPRODUCTOR DE TV (zapping + overlay) ===================== -->
+    <div id="tv-player" class="fixed inset-0 z-[65] hidden bg-black">
+      <video id="tv-video" class="w-full h-full object-contain bg-black" autoplay></video>
+
+      <!-- Barra superior con info del canal -->
+      <div
+        id="tv-player-top"
+        class="absolute top-0 inset-x-0 p-5 flex items-center gap-4 bg-gradient-to-b from-black/90 to-transparent transition-opacity duration-300 z-20"
+      >
+        <button id="tv-btn-cerrar-player" class="text-white hover:text-sky-400 text-4xl leading-none font-bold">
+          &times;
+        </button>
+        <img id="tv-player-logo" src="" alt="" class="w-12 h-12 object-contain rounded bg-white/5 hidden" />
+        <div class="min-w-0">
+          <h2 id="tv-player-titulo" class="text-white font-bold text-xl truncate drop-shadow-md">Canal</h2>
+          <p id="tv-player-sub" class="text-gray-300 text-sm truncate"></p>
+        </div>
+        <button
+          id="tv-btn-fav-player"
+          class="ml-auto bg-white/10 hover:bg-white/20 backdrop-blur text-white px-4 py-2 rounded-lg font-bold transition flex items-center gap-2"
+          title="Favorito"
+        >
+          <span id="tv-icono-fav-player">☆</span> Favorito
+        </button>
+      </div>
+
+      <!-- Aviso central de cambio de canal (zap) -->
+      <div
+        id="tv-zap-toast"
+        class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 px-8 py-5 rounded-2xl text-center hidden z-20 backdrop-blur"
+      >
+        <p id="tv-zap-nombre" class="text-white text-2xl font-bold"></p>
+        <p id="tv-zap-info" class="text-gray-400 text-sm mt-1"></p>
+      </div>
+
+      <!-- Mensaje de estado / carga -->
+      <p
+        id="tv-player-msg"
+        class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white font-bold bg-black/70 px-6 py-4 rounded-lg hidden z-20 animate-pulse"
+      ></p>
+
+      <!-- Pista de controles -->
+      <div
+        id="tv-player-hint"
+        class="absolute bottom-0 inset-x-0 p-4 text-center text-sm text-gray-300 bg-gradient-to-t from-black/90 to-transparent transition-opacity duration-300 z-20"
+      >
+        <span class="mx-2">↑ ↓ Cambiar canal</span>
+        <span class="mx-2">· Enter / OK: Lista de canales</span>
+        <span class="mx-2">· F: Favorito</span>
+        <span class="mx-2">· Esc: Salir</span>
+      </div>
+
+      <!-- Overlay GRIS de lista de canales (sin cerrar el video) -->
+      <div
+        id="tv-overlay-canales"
+        class="absolute inset-y-0 left-0 w-full sm:w-96 bg-[#15151b]/95 backdrop-blur-md border-r border-white/10 hidden flex-col z-30 shadow-2xl"
+      >
+        <div class="p-4 border-b border-white/10 flex items-center gap-3">
+          <span class="text-lg font-bold">📺 Canales</span>
+          <button id="tv-overlay-cerrar" class="ml-auto text-gray-400 hover:text-white text-2xl leading-none">
+            &times;
+          </button>
+        </div>
+        <div class="p-3 border-b border-white/10">
+          <input
+            type="text"
+            id="tv-overlay-buscador"
+            placeholder="Buscar canal..."
+            class="w-full bg-surface border border-white/10 text-white px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/60"
+          />
+        </div>
+        <div id="tv-overlay-lista" class="flex-1 overflow-y-auto p-2 flex flex-col gap-1"></div>
+      </div>
+    </div>
+
+    <!-- ===================== AJUSTES (URL del servidor) ===================== -->
+    <div
+      id="modal-ajustes"
+      class="modal-backdrop fixed inset-0 z-[75] hidden items-center justify-center"
+    >
+      <div class="settings-panel pop-in">
+        <button
+          id="btn-cerrar-ajustes"
+          class="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition text-lg"
+          title="Cerrar"
+        >
+          ✕
+        </button>
+        <h2 class="settings-title">⚙ Ajustes</h2>
+        <p class="settings-desc">Configura la URL del motor de contenido (servidor Node en tu red).</p>
+
+        <label class="settings-label" for="input-api-url">URL del API</label>
+        <input
+          type="text"
+          id="input-api-url"
+          class="settings-input"
+          placeholder="http://192.168.1.10:3000/api"
+          autocomplete="off"
+        />
+        <p class="settings-hint">
+          Por defecto: <span id="texto-api-defecto" class="text-gray-300"></span>
+        </p>
+
+        <div id="estado-api-ajustes" class="settings-status hidden" role="status"></div>
+
+        <div class="settings-actions">
+          <button type="button" id="btn-probar-api" class="btn-surface w-full py-3">Probar conexión</button>
+          <button type="button" id="btn-guardar-api" class="btn-brand w-full py-3">Guardar</button>
+          <button type="button" id="btn-restaurar-api" class="btn-ghost w-full py-2.5 text-sm">
+            Restaurar predeterminado
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== MODAL REANUDAR ===================== -->
+    <div
+      id="modal-reanudar"
+      class="modal-backdrop fixed inset-0 z-[70] hidden flex items-center justify-center"
+    >
+      <div class="resume-card pop-in">
+        <button
+          id="btn-reanudar-cerrar"
+          class="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition text-lg"
+          title="Cerrar (Esc)"
+        >
+          ✕
+        </button>
+        <div class="text-4xl mb-3">▶</div>
+        <h3 id="titulo-modal-reanudar" class="resume-title">Continuar viendo</h3>
+        <p id="desc-modal-reanudar" class="resume-desc">
+          Te quedaste en el minuto <span id="texto-minuto-reanudar" class="text-white font-bold"></span>.
+        </p>
+        <div class="resume-actions">
+          <button id="btn-reanudar-si" class="btn-brand w-full py-3.5">Reanudar</button>
+          <button id="btn-reanudar-no" class="btn-surface w-full py-3.5">Ver desde el inicio</button>
+          <button id="btn-reanudar-cancelar" class="btn-ghost w-full py-2.5 text-sm">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/src/main.js" type="module"></script>
+  </body>
+</html>

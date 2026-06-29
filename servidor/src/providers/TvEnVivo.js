@@ -2,6 +2,7 @@ const ProviderBase = require('./ProviderBase')
 const axios = require('axios')
 const fs = require('fs')
 const path = require('path')
+const config = require('../config/env')
 
 // ==========================================
 // EXTENSIÓN: TV EN VIVO (IPTV / estilo Smarters)
@@ -30,10 +31,14 @@ const FUENTES = [
   { nombre: '🇪🇸 España', url: 'https://iptv-org.github.io/iptv/countries/es.m3u' }
 ]
 
-const CACHE_FILE = process.env.NEXUS_USER_DATA
-  ? path.join(process.env.NEXUS_USER_DATA, 'tv_cache.json')
-  : path.join(__dirname, '..', '..', 'tv_cache.json')
-const CACHE_TTL = 12 * 60 * 60 * 1000 // 12 horas
+const CACHE_FILE = path.join(config.dataDir, 'tv_cache.json')
+const CACHE_TTL = config.tvCacheTtlMs
+
+try {
+  fs.mkdirSync(config.dataDir, { recursive: true })
+} catch (_) {
+  /* directorio opcional */
+}
 const PAGE_SIZE = 36
 
 class TvEnVivo extends ProviderBase {
@@ -96,7 +101,7 @@ class TvEnVivo extends ProviderBase {
     const resultados = await Promise.all(
       FUENTES.map(async (fuente) => {
         try {
-          const { data } = await axios.get(fuente.url, { timeout: 15000 })
+          const { data } = await axios.get(fuente.url, { timeout: config.httpTimeoutMs })
           return this._parsearM3U(data, fuente.nombre)
         } catch (e) {
           console.warn(`[TV en Vivo] No se pudo descargar ${fuente.nombre}: ${e.message}`)

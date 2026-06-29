@@ -1,15 +1,22 @@
 const axios = require('axios');
+const config = require('../config/env');
 
-const TMDB_API_KEY = '942fbea1cdb136df47a84824b2561ea0';
-const TMDB_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI5NDJmYmVhMWNkYjEzNmRmNDdhODQ4MjRiMjU2MWVhMCIsIm5iZiI6MTc2NDk3OTI3Ni45MTYsInN1YiI6IjY5MzM3MjRjNjc2NTEyNjQ1NzI0MzQzZCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.vqJhdQxn8Hu0fXK8XlBcgAbDxPeZ_oKoPnL6MWmYg5U';
+let tmdbApi = null;
 
-const tmdbApi = axios.create({
-    baseURL: 'https://api.themoviedb.org/3',
-    headers: {
-        Authorization: `Bearer ${TMDB_TOKEN}`,
-        'Content-Type': 'application/json;charset=utf-8'
+function getTmdbApi() {
+    if (!config.tmdbReadToken) return null;
+    if (!tmdbApi) {
+        tmdbApi = axios.create({
+            baseURL: 'https://api.themoviedb.org/3',
+            timeout: config.httpTimeoutMs,
+            headers: {
+                Authorization: `Bearer ${config.tmdbReadToken}`,
+                'Content-Type': 'application/json;charset=utf-8'
+            }
+        });
     }
-});
+    return tmdbApi;
+}
 
 function cleanTitle(title) {
     if (!title) return '';
@@ -20,10 +27,11 @@ function cleanTitle(title) {
 }
 
 async function searchTMDB(title) {
-    if (!title) return null;
+    const api = getTmdbApi();
+    if (!api || !title) return null;
     try {
         const query = cleanTitle(title);
-        const { data } = await tmdbApi.get('/search/multi', {
+        const { data } = await api.get('/search/multi', {
             params: { query, language: 'es-ES', page: 1 }
         });
         if (data.results && data.results.length > 0) {
@@ -38,9 +46,9 @@ async function searchTMDB(title) {
 
 async function enrichItems(items) {
     if (!items || !Array.isArray(items)) return items;
-    
+    if (!getTmdbApi()) return items;
+
     const enriched = await Promise.all(items.map(async (item) => {
-        // No enriquecemos anime porque TMDB no siempre tiene buen anime, Jkanime es mejor.
         if (item.provider === 'animeflv' || item.provider === 'jkanime' || item.provider === 'monoschinos') {
             return item;
         }
@@ -64,6 +72,7 @@ async function enrichDetails(detalles, providerId) {
     if (providerId === 'animeflv' || providerId === 'jkanime' || providerId === 'monoschinos') {
         return detalles;
     }
+    if (!getTmdbApi()) return detalles;
 
     const tmdbData = await searchTMDB(detalles.titulo);
     if (tmdbData) {

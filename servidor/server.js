@@ -2,11 +2,46 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const config = require('./src/config/env');
 const { enrichItems, enrichDetails } = require('./src/utils/tmdb');
 
+process.on('uncaughtException', (err) => {
+    console.error('[ERROR] uncaughtException:', err?.stack || err);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('[ERROR] unhandledRejection:', reason?.stack || reason);
+});
+
+try {
+    fs.mkdirSync(config.dataDir, { recursive: true });
+} catch (err) {
+    console.warn('[WARN] No se pudo crear directorio de datos:', err.message);
+}
+
+const corsOrigin =
+    config.corsOrigin === '*'
+        ? '*'
+        : config.corsOrigin.split(',').map((o) => o.trim()).filter(Boolean);
+
+const corsOptions = {
+    origin: corsOrigin,
+    methods: ['GET', 'HEAD', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+    credentials: corsOrigin !== '*',
+    maxAge: 86400
+};
+
 const app = express();
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
+
+app.get('/health', (_req, res) => {
+    res.json({
+        status: 'ok',
+        uptime: process.uptime()
+    });
+});
 
 // ==========================================
 // CARGA AUTOMÁTICA DE EXTENSIONES
@@ -185,7 +220,7 @@ const itemsPopulares = async (page = 1) => {
 
 // Caché en memoria del home (las filas no cambian a cada segundo).
 let homeCache = { data: null, ts: 0 };
-const HOME_TTL = 5 * 60 * 1000; // 5 minutos
+const HOME_TTL = config.homeCacheTtlMs;
 
 // HOME estilo Netflix: devuelve filas (carruseles) por extensión y por género.
 // Las filas de género se construyen automáticamente a partir de los filtros que
@@ -370,9 +405,32 @@ app.get('/api/providers/:id/filters', checkProvider, async (req, res) => {
     }
 });
 
-app.listen(process.env.NEXUS_API_PORT || 3000, '127.0.0.1', () =>
-  console.log(`🔥 Servidor corriendo en http://127.0.0.1:${process.env.NEXUS_API_PORT || 3000}`)
-)
+app.use((_req, res) => {
+    res.status(404).json({ error: 'Ruta no encontrada' });
+});
+
+app.use((err, _req, res, _next) => {
+    console.error('[API] Error no manejado:', err?.stack || err);
+    if (!res.headersSent) {
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+const localHost = config.host === '0.0.0.0' ? 'localhost' : config.host;
+const mode = config.isProduction ? 'production' : 'development';
+
+app.listen(config.port, config.host, () => {
+    console.log('═══════════════════════════════════════════');
+    console.log('  Servidor iniciado');
+    console.log(`  Puerto:     ${config.port}`);
+    console.log(`  Host:       ${config.host}`);
+    console.log(`  Modo:       ${mode}`);
+    console.log(`  Entorno:    ${config.nodeEnv}`);
+    console.log(`  Health:     http://${localHost}:${config.port}/health`);
+    console.log(`  API:        http://${localHost}:${config.port}/api`);
+    console.log(`  Extensiones: ${Object.keys(providers).length}`);
+    console.log('═══════════════════════════════════════════');
+});
 
 process.on('disconnect', () => {
     console.log('⚠️ Proceso principal desconectado. Cerrando servidor Express de forma segura...');

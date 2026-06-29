@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+data
+tv_cache.json
+*.md
+.DS_Store
+Thumbs.db
