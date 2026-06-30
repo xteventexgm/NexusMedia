@@ -306,6 +306,56 @@ function crearSeccionTv() {
   return section
 }
 
+/** Inicio parcial cuando el API no responde (emulador sin red, URL incorrecta, etc.). */
+function mostrarInicioSinServidor(mensaje) {
+  extensionActual = 'inicio'
+  paginaActual = 1
+  busquedaActual = ''
+  if (inputBuscador) inputBuscador.value = ''
+  filtrosActuales = {}
+  if (contenedorFiltros) contenedorFiltros.classList.add('hidden')
+  if (contenedorPaginacion) contenedorPaginacion.classList.add('hidden')
+  if (tituloSeccion) {
+    tituloSeccion.textContent = '🏠 Inicio'
+    tituloSeccion.classList.add('hidden')
+  }
+  ocultarAtras()
+  marcarNavActiva(btnInicio)
+
+  aplicarLayoutFilas()
+  gridCatalogo.innerHTML = ''
+  gridCatalogo.appendChild(crearSeccionTv())
+
+  const aviso = document.createElement('section')
+  aviso.className = 'w-full py-12 px-6 text-center'
+
+  const icono = document.createElement('p')
+  icono.className = 'text-5xl mb-4'
+  icono.setAttribute('aria-hidden', 'true')
+  icono.textContent = '📡'
+
+  const titulo = document.createElement('h3')
+  titulo.className = 'text-xl font-bold text-white mb-3'
+  titulo.textContent = 'Sin conexión con el servidor'
+
+  const detalle = document.createElement('p')
+  detalle.className = 'text-gray-400 text-base mb-8 max-w-xl mx-auto leading-relaxed'
+  detalle.textContent =
+    mensaje || 'Abre Ajustes ⚙ y configura la URL del API (p. ej. https://tu-servidor.onrender.com/api).'
+
+  const btnIrAjustes = document.createElement('button')
+  btnIrAjustes.type = 'button'
+  btnIrAjustes.className = 'btn-brand px-8 py-3 text-base foco-item'
+  btnIrAjustes.textContent = 'Ir a Ajustes'
+  btnIrAjustes.onclick = () => document.getElementById('btn-ajustes')?.click()
+
+  aviso.appendChild(icono)
+  aviso.appendChild(titulo)
+  aviso.appendChild(detalle)
+  aviso.appendChild(btnIrAjustes)
+  gridCatalogo.appendChild(aviso)
+}
+
 // Accesos rápidos a cada extensión (reemplaza la antigua lista lateral)
 function crearSeccionExtensiones() {
   const exts = (extensionesLista || []).filter((e) => e.id !== 'tv')
@@ -338,15 +388,26 @@ function crearSeccionExtensiones() {
 async function inicializarApp() {
   if (isWebOS()) document.body.classList.add('webos-tv')
   const splash = document.getElementById('splash-carga')
+
+  bibliotecaLocal = { favoritos: [], progreso: {}, historial: [] }
   try {
     bibliotecaLocal = await libraryApi.getLibrary()
     if (!bibliotecaLocal.historial) bibliotecaLocal.historial = []
-    Tv.bindBiblioteca(bibliotecaLocal)
+  } catch (error) {
+    console.warn('Biblioteca local no disponible, usando vacía:', error)
+  }
+  Tv.bindBiblioteca(bibliotecaLocal)
+
+  try {
     await cargarExtensiones()
     await cargarInicio()
   } catch (error) {
-    console.error('Error al arrancar:', error)
-    mostrarErrorApi('No se pudo iniciar la biblioteca local.')
+    console.error('Error al cargar contenido:', error)
+    const detalle =
+      error?.message === 'Failed to fetch'
+        ? 'No hay conexión con el servidor. Abre Ajustes ⚙ y verifica la URL del API.'
+        : error?.message || 'No se pudo cargar el catálogo.'
+    mostrarInicioSinServidor(detalle)
   } finally {
     await finalizarCargaInicial(splash)
   }
@@ -426,6 +487,11 @@ async function manejarApiGuardada(urlNueva, urlAnterior) {
     await cargarInicio()
   } catch (err) {
     console.warn('Catálogo no recargado tras cambiar API:', err.message)
+    const detalle =
+      err?.message === 'Failed to fetch'
+        ? 'No hay conexión con el servidor. Verifica la URL del API en Ajustes.'
+        : err?.message || 'No se pudo cargar el catálogo.'
+    mostrarInicioSinServidor(detalle)
   }
 
   irAMenu()

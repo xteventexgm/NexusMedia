@@ -10,7 +10,7 @@ function storageDisponible() {
     localStorage.setItem(probe, '1')
     localStorage.removeItem(probe)
     return true
-  } catch {
+  } catch (e) {
     return false
   }
 }
@@ -20,12 +20,16 @@ const memoriaFallback = {}
 export const storage = {
   get(key) {
     try {
-      if (!storageDisponible()) return memoriaFallback[PREFIX + key] ?? null
+      if (!storageDisponible()) {
+        var mem = memoriaFallback[PREFIX + key]
+        return mem !== undefined && mem !== null ? mem : null
+      }
       const raw = localStorage.getItem(PREFIX + key)
       if (raw === null) return null
       return JSON.parse(raw)
-    } catch {
-      return memoriaFallback[PREFIX + key] ?? null
+    } catch (e) {
+      var fallback = memoriaFallback[PREFIX + key]
+      return fallback !== undefined && fallback !== null ? fallback : null
     }
   },
 
@@ -37,7 +41,7 @@ export const storage = {
         return
       }
       localStorage.setItem(PREFIX + key, serializado)
-    } catch {
+    } catch (e) {
       memoriaFallback[PREFIX + key] = value
     }
   },
@@ -45,7 +49,7 @@ export const storage = {
   remove(key) {
     try {
       if (storageDisponible()) localStorage.removeItem(PREFIX + key)
-    } catch {
+    } catch (e) {
       /* ignore */
     }
     delete memoriaFallback[PREFIX + key]

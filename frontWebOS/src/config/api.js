@@ -13,8 +13,13 @@ export function getDefaultApiUrl() {
 }
 
 export function getApiUrl() {
-  var stored = localStorage.getItem('api_url')
-  return stored || getDefaultApiUrl()
+  try {
+    var stored = localStorage.getItem('api_url')
+    if (stored) return stored
+  } catch (e) {
+    /* localStorage no disponible (emulador / modo privado) */
+  }
+  return getDefaultApiUrl()
 }
 
 export function setApiUrl(url) {
