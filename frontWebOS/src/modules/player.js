@@ -9,6 +9,7 @@ import {
   isIframePlaybackEnabled
 } from './iframePlayback.js'
 import { formatTime } from '../utils/formatTime.js'
+import { isWebOS, aplicarOverlayTV, quitarOverlayTV } from '../utils/platform.js'
 
 export { formatTime }
 
@@ -258,6 +259,8 @@ export function initPlayerModule(getCtx) {
     ctx.urlEpisodioJugando = urlEpisodio
     ctx.indiceEpisodioActual = indexActual
     modalReproductor.classList.remove('hidden')
+    document.body.classList.add('modal-reproductor-abierto')
+    if (isWebOS()) aplicarOverlayTV(modalReproductor, 9000)
     window.dispatchEvent(new CustomEvent('nexus:player-abierto'))
     videoPlayer.classList.add('hidden')
     iframePlayer.classList.add('hidden')
@@ -461,15 +464,19 @@ export function initPlayerModule(getCtx) {
     if (document.fullscreenElement) document.exitFullscreen()
     resetControlesReproductor()
     modalReproductor.classList.add('hidden')
+    document.body.classList.remove('modal-reproductor-abierto')
+    if (isWebOS()) quitarOverlayTV(modalReproductor)
 
-    guardarProgresoEpisodioActual().finally(function () {
+    function cerrarYLimpiar() {
       destroyStreamHandle(ctx.streamHandle)
       ctx.streamHandle = null
       stopIframe({ iframe: iframePlayer })
       prepareVideoForPlayback(videoPlayer)
 
       if (ctx.urlAnimeActual) ctx.abrirDetalles(ctx.urlAnimeActual, ctx.objetoAnimeActual.provider)
-    })
+    }
+
+    guardarProgresoEpisodioActual().then(cerrarYLimpiar, cerrarYLimpiar)
   })
 
   Player.mostrarControles = mostrarControlesReproductor

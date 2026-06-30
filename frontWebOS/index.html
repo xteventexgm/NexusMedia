@@ -2,11 +2,61 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta id="meta-viewport" name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="./webos-polyfills.js"></script>
+    <script src="./fetch-polyfill.js"></script>
+    <script>
+      /* Trazas tempranas antes del bundle (System.import) */
+      ;(function () {
+        var lines = []
+        function pintarPanel() {
+          var panel = document.getElementById('nexus-debug-panel-body')
+          if (panel) panel.textContent = lines.join('\n')
+        }
+        function trace(etapa, detalle) {
+          var line = etapa + (detalle ? ': ' + detalle : '')
+          console.log('[NexusBoot:early]', line)
+          lines.push(line)
+          window.__nexusEarlyLines = lines
+          var s = document.getElementById('splash-estado')
+          if (s) s.textContent = lines.slice(-6).join('\n')
+          pintarPanel()
+        }
+        window.__nexusEarlyLines = lines
+        window.__nexusBootTrace = trace
+        window.__nexusBootError = function (etapa, err) {
+          trace('!! ' + etapa, err && (err.message || err.stack || String(err)))
+        }
+        trace('HTML cargado', 'webos-polyfills + fetch listos')
+        trace('navigator.onLine', String(navigator.onLine))
+        pintarPanel()
+        window.onerror = function (msg, src, line, col, err) {
+          trace('window.onerror', (err && err.message) || msg)
+        }
+        window.addEventListener('unhandledrejection', function (e) {
+          trace('unhandledrejection', e.reason && (e.reason.message || String(e.reason)))
+        })
+      })()
+    </script>
+    <script>
+      /* TV física FHD = 1280×720 (el emulador 5 suele simular 1920×1080) */
+      ;(function () {
+        if (!/Web0S|WebOS/i.test(navigator.userAgent || '')) return
+        document.documentElement.className += ' webos-tv-root'
+        var m = document.getElementById('meta-viewport')
+        if (m) m.content = 'width=1280, height=720, initial-scale=1, user-scalable=no'
+      })()
+    </script>
     <title>NexusMedia</title>
   </head>
 
   <body class="bg-base text-white h-screen flex flex-col overflow-hidden font-sans antialiased">
+    <!-- Panel DEBUG persistente (TV física) — no se cierra al cargar -->
+    <div id="nexus-debug-panel" class="nexus-debug-panel" aria-live="polite">
+      <div id="nexus-debug-panel-head">DEBUG NEXUSMEDIA — logs de arranque</div>
+      <pre id="nexus-debug-panel-body"></pre>
+    </div>
+
     <!-- Pantalla de carga inicial -->
     <div id="splash-carga" aria-live="polite" aria-busy="true">
       <div class="splash-logo">
@@ -15,6 +65,7 @@
       <div class="splash-loader" role="progressbar" aria-label="Cargando">
         <div class="splash-loader-bar"></div>
       </div>
+      <p id="splash-estado" class="splash-estado">Cargando…</p>
     </div>
 
     <!-- ===================== BARRA SUPERIOR (estilo Netflix) ===================== -->

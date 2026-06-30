@@ -5,7 +5,7 @@ import './styles/main.css'
 import { apiFetch, mostrarErrorApi, mostrarToastExito } from './services/apiClient.js'
 import { libraryApi } from './storage/library.js'
 import { isBackKey, isEnterKey, isSelectKey } from './utils/keys.js'
-import { isWebOS, cerrarAppWebOS } from './utils/platform.js'
+import { isWebOS, cerrarAppWebOS, aplicarViewportTV, scrollToTop, scrollToLeft, scrollByHorizontal, flattenRows, focusTV, scrollIntoViewTV, abrirSelectNativo, aplicarOverlayTV, quitarOverlayTV } from './utils/platform.js'
 import { bindPosterImage } from './utils/images.js'
 import { formatTime } from './utils/formatTime.js'
 import { initTvModule } from './modules/tv.js'
@@ -15,6 +15,21 @@ import {
   setPlayerContextFactory
 } from './modules/playerBridge.js'
 import { initSettingsModule } from './modules/settings.js'
+import {
+  bootTrace,
+  bootError,
+  bootFatal,
+  bootDumpEntorno,
+  installBootGlobalHandlers,
+  installEarlyBootBridge,
+  bootDelaySplashMs,
+  huboErrorBoot
+} from './utils/bootDebug.js'
+import { getApiUrl, getDefaultApiUrl } from './config/api.js'
+
+installEarlyBootBridge()
+installBootGlobalHandlers()
+bootDumpEntorno(getApiUrl, getDefaultApiUrl)
 
 const Tv = initTvModule()
 const abrirTvApp = () => Tv.abrirTvApp()
@@ -176,9 +191,9 @@ function porcentajeProgresoEpisodio(progreso, ep) {
 }
 
 function marcarNavActiva(boton) {
-  document
-    .querySelectorAll('.nav-item, #btn-busqueda-global')
-    .forEach((b) => b.classList.remove('nav-activa', 'ring-2', 'ring-brand', 'bg-white/5'))
+  Array.from(document.querySelectorAll('.nav-item, #btn-busqueda-global')).forEach(function (b) {
+    b.classList.remove('nav-activa', 'ring-2', 'ring-brand', 'bg-white/5')
+  })
   if (boton) {
     if (boton.classList.contains('nav-item') || boton.id === 'btn-busqueda-global') {
       boton.classList.add('nav-activa')
@@ -188,10 +203,11 @@ function marcarNavActiva(boton) {
 
 const CLASES_GRID =
   'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5'
+const CLASES_GRID_TV = 'grid flex flex-wrap gap-4'
 const CLASES_FILAS = 'flex flex-col gap-9 md:gap-10 overflow-visible'
 
 function aplicarLayoutGrid() {
-  gridCatalogo.className = CLASES_GRID
+  gridCatalogo.className = isWebOS() ? CLASES_GRID_TV : CLASES_GRID
 }
 function aplicarLayoutFilas() {
   gridCatalogo.className = CLASES_FILAS
@@ -279,9 +295,9 @@ function crearFila(fila) {
   }
 
   section.querySelector('.fila-prev').onclick = () =>
-    strip.scrollBy({ left: -strip.clientWidth * 0.85, behavior: 'smooth' })
+    scrollByHorizontal(strip, -strip.clientWidth * 0.85)
   section.querySelector('.fila-next').onclick = () =>
-    strip.scrollBy({ left: strip.clientWidth * 0.85, behavior: 'smooth' })
+    scrollByHorizontal(strip, strip.clientWidth * 0.85)
 
   return section
 }
@@ -386,26 +402,35 @@ function crearSeccionExtensiones() {
 // INICIALIZACIÓN Y CATÁLOGO
 // ==========================================
 async function inicializarApp() {
-  if (isWebOS()) document.body.classList.add('webos-tv')
+  if (isWebOS()) {
+    aplicarViewportTV()
+    document.body.classList.add('webos-tv')
+    bootTrace('webOS TV', 'viewport y clase webos-tv aplicados')
+  }
   const splash = document.getElementById('splash-carga')
+  bootTrace('Inicialización', 'preparando biblioteca local')
 
   bibliotecaLocal = { favoritos: [], progreso: {}, historial: [] }
   try {
     bibliotecaLocal = await libraryApi.getLibrary()
     if (!bibliotecaLocal.historial) bibliotecaLocal.historial = []
+    bootTrace('Biblioteca local', 'OK')
   } catch (error) {
-    console.warn('Biblioteca local no disponible, usando vacía:', error)
+    bootError('Biblioteca local', error)
   }
   Tv.bindBiblioteca(bibliotecaLocal)
 
   try {
+    bootTrace('Catálogo', 'cargarExtensiones → /providers')
     await cargarExtensiones()
+    bootTrace('Catálogo', 'cargarInicio → /home')
     await cargarInicio()
+    bootTrace('Arranque', 'inicio renderizado OK')
   } catch (error) {
-    console.error('Error al cargar contenido:', error)
+    bootError('Error al cargar contenido', error)
     const detalle =
-      error?.message === 'Failed to fetch'
-        ? 'No hay conexión con el servidor. Abre Ajustes ⚙ y verifica la URL del API.'
+      error?.message === 'Failed to fetch' || error?.message === 'Network request failed'
+        ? 'No hay conexión con el servidor. URL: ' + getApiUrl()
         : error?.message || 'No se pudo cargar el catálogo.'
     mostrarInicioSinServidor(detalle)
   } finally {
@@ -414,13 +439,22 @@ async function inicializarApp() {
 }
 
 async function finalizarCargaInicial(splash) {
-  await new Promise((r) => setTimeout(r, 350))
-  if (splash) {
+  var espera = bootDelaySplashMs()
+  if (espera > 1000) {
+    bootTrace('Splash', 'visible ' + Math.round(espera / 1000) + 's — logs en panel DEBUG abajo')
+  }
+  await new Promise((r) => setTimeout(r, espera))
+
+  if (splash && !huboErrorBoot()) {
     splash.classList.add('splash-out')
     splash.setAttribute('aria-busy', 'false')
     await new Promise((r) => setTimeout(r, 520))
     splash.remove()
+  } else if (splash && huboErrorBoot()) {
+    bootTrace('Splash', 'se mantiene por error — lee panel DEBUG')
+    splash.setAttribute('aria-busy', 'false')
   }
+
   zonaActual = 'MENU'
   modoEdicion = false
   homeFila = 0
@@ -432,6 +466,7 @@ async function finalizarCargaInicial(splash) {
 }
 
 async function cargarExtensiones() {
+  bootTrace('cargarExtensiones', 'inicio')
   try {
     const extensiones = await apiFetch('/providers')
     providersMeta = {}
@@ -439,8 +474,9 @@ async function cargarExtensiones() {
       providersMeta[ext.id] = ext
     })
     extensionesLista = extensiones
+    bootTrace('cargarExtensiones', 'OK — ' + extensiones.length + ' extensiones')
   } catch (error) {
-    console.error('Extensiones no disponibles:', error)
+    bootError('cargarExtensiones', error)
     throw error
   }
 }
@@ -509,18 +545,20 @@ async function cargarInicio() {
   tituloSeccion.classList.add('hidden') // en el Inicio el título estorba (van las filas directas)
   ocultarAtras()
   marcarNavActiva(btnInicio)
-  if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' })
+  if (mainScroll) scrollToTop(mainScroll)
   await cargarInicioFilas()
 }
 
 async function cargarInicioFilas() {
   contenedorPaginacion.classList.add('hidden')
   mostrarSkeletonFilas()
+  bootTrace('cargarInicioFilas', 'solicitando /home')
   try {
     const filas = await apiFetch('/home')
+    bootTrace('cargarInicioFilas', '/home OK — ' + (Array.isArray(filas) ? filas.length : 0) + ' filas')
 
     if (!Array.isArray(filas) || filas.length === 0) {
-      // Fallback: catálogo unificado plano si el home no trae filas
+      bootTrace('cargarInicioFilas', 'sin filas → catálogo plano')
       return obtenerDatosPaginados()
     }
 
@@ -553,6 +591,7 @@ async function cargarInicioFilas() {
     // Fila "Porque viste..." (se inserta de forma asíncrona justo tras las fijas)
     agregarFilaPorqueViste(seccionesFijas)
   } catch (error) {
+    bootError('cargarInicioFilas', error)
     console.warn('Inicio con filas falló, usando catálogo plano:', error.message)
     mostrarErrorApi('No se pudo cargar el inicio. Mostrando catálogo alternativo.')
     await obtenerDatosPaginados()
@@ -639,7 +678,7 @@ async function cargarCategoria(genLabel) {
   tituloSeccion.classList.remove('hidden')
   mostrarAtras()
   marcarNavActiva(null)
-  if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' })
+  if (mainScroll) scrollToTop(mainScroll)
   await obtenerDatosPaginados()
 }
 
@@ -693,7 +732,7 @@ async function cargarCatalogo(idExtension, nombreExtension) {
   tituloSeccion.textContent = `${meta.icono} ${nombreExtension}`
   tituloSeccion.classList.remove('hidden')
   mostrarAtras()
-  if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' })
+  if (mainScroll) scrollToTop(mainScroll)
   await cargarFiltrosDinamicos(idExtension)
   await obtenerDatosPaginados()
 }
@@ -744,7 +783,7 @@ async function obtenerDatosPaginados() {
     if (resultados.length > 0 || paginaActual > 1) contenedorPaginacion.classList.remove('hidden')
     
     // Resetear scroll y foco al inicio del catálogo
-    if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' })
+    if (mainScroll) scrollToTop(mainScroll)
     const gridEls = obtenerElementosZonas().GRID
     if (gridEls && gridEls.length > 0 && !modoEdicion) {
       zonaActual = 'GRID'
@@ -833,7 +872,7 @@ function renderizarTarjetas(items) {
   })
 }
 function actualizarEstrellasVisuales() {
-  document.querySelectorAll('#grid-catalogo > div').forEach((card) => {
+  Array.from(document.querySelectorAll('#grid-catalogo > div')).forEach(function (card) {
     const urlAttr = card.getAttribute('data-url')
     const esFav = bibliotecaLocal.favoritos.some((fav) => fav.url === urlAttr)
     const btnFav = card.querySelector('.btn-fav')
@@ -1032,12 +1071,29 @@ function configurarBotonPlayPrincipal(detalles, episodios) {
     ejecutarReproduccionEpisodio(episodios[mejorIdx], mejorIdx, detalles.titulo)
 }
 
+function quitarSplashRapido() {
+  var splash = document.getElementById('splash-carga')
+  if (!splash || !splash.parentNode) return
+  splash.classList.add('splash-out')
+  splash.setAttribute('aria-busy', 'false')
+  setTimeout(function () {
+    if (splash.parentNode) splash.remove()
+  }, 400)
+}
+
 async function abrirDetalles(urlPath, providerId = extensionActual) {
+  bootTrace('abrirDetalles', urlPath)
+  quitarSplashRapido()
   // Sincronizamos la extensión actual con el dueño real de la tarjeta
   extensionActual = providerId
   urlAnimeActual = urlPath
+  zonaActual = 'MODAL'
+  modoEdicion = false
+  document.body.classList.add('modal-detalles-abierto')
 
   modalDetalles.classList.remove('hidden')
+  if (isWebOS()) aplicarOverlayTV(modalDetalles, 8000)
+  bootTrace('abrirDetalles', 'modal visible (z-index 8000)')
   detalleTitulo.textContent = 'Cargando...'
   detalleSinopsis.textContent = ''
   listaEpisodios.innerHTML = `
@@ -1060,6 +1116,7 @@ async function abrirDetalles(urlPath, providerId = extensionActual) {
     const detalles = await apiFetch(
       `/providers/${providerId}/details?url=${encodeURIComponent(urlPath)}`
     )
+    bootTrace('abrirDetalles', 'detalles OK: ' + (detalles.titulo || '?'))
 
     episodiosDelAnimeActual = detalles.episodios || []
 
@@ -1304,8 +1361,12 @@ async function abrirDetalles(urlPath, providerId = extensionActual) {
     }
     }
 
-    requestAnimationFrame(() => enfocarModalInicial())
+    requestAnimationFrame(function () {
+      bootTrace('abrirDetalles', 'foco modal')
+      enfocarModalInicial()
+    })
   } catch (error) {
+    bootError('abrirDetalles', error)
     detalleTitulo.textContent = 'Error al cargar'
     listaEpisodios.innerHTML =
       '<p class="state-box col-span-full text-red-400">No se pudo cargar este título. Prueba de nuevo.</p>'
@@ -1338,6 +1399,8 @@ btnDetalleReset.addEventListener('click', async () => {
 
 function cerrarModalDetalles() {
   modalDetalles.classList.add('hidden')
+  document.body.classList.remove('modal-detalles-abierto')
+  if (isWebOS()) quitarOverlayTV(modalDetalles)
   limpiarFocoTV()
   modoEdicion = false
   zonaActual = 'GRID'
@@ -1435,27 +1498,43 @@ function irAMenu() {
   indicesFoco.MENU = indiceMenuInicio(menu)
   marcarNavActiva(btnInicio)
   if (menu[indicesFoco.MENU]) enfocarElemento(menu[indicesFoco.MENU])
-  if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' })
+  if (mainScroll) scrollToTop(mainScroll)
 }
 
 // Elementos enfocables dentro de una sección del Inicio (carrusel, chips, banner TV).
 function itemsEnFilaHome(sec) {
   const strip = sec.querySelector('.fila-scroll')
   if (strip) {
-    return Array.from(
-      strip.querySelectorAll(':scope > div > .media-card, :scope > div > .group, :scope > div > .foco-item, :scope > div > button')
-    ).filter(esVisibleTV)
+    const cards = []
+    Array.from(strip.children).forEach(function (div) {
+      Array.from(div.children).forEach(function (el) {
+        if (
+          el.classList.contains('media-card') ||
+          el.classList.contains('group') ||
+          el.classList.contains('foco-item') ||
+          el.tagName === 'BUTTON'
+        ) {
+          cards.push(el)
+        }
+      })
+    })
+    return cards.filter(esVisibleTV)
   }
   const chips = sec.querySelector('.extension-strip, .flex-wrap')
   if (chips) return Array.from(chips.querySelectorAll('button')).filter(esVisibleTV)
-  const banner = sec.querySelector(':scope > button')
-  if (banner) return [banner].filter(esVisibleTV)
+  for (let i = 0; i < sec.children.length; i++) {
+    if (sec.children[i].tagName === 'BUTTON') {
+      return [sec.children[i]].filter(esVisibleTV)
+    }
+  }
   return []
 }
 
 // Devuelve las filas (carruseles) del Inicio como matriz de elementos enfocables.
 function filasHome() {
-  return Array.from(gridCatalogo.querySelectorAll(':scope > section'))
+  return Array.from(gridCatalogo.children).filter(function (el) {
+    return el.tagName === 'SECTION'
+  })
     .map(itemsEnFilaHome)
     .filter((fila) => fila.length > 0)
 }
@@ -1484,12 +1563,12 @@ function gridModal() {
 }
 
 function obtenerElementosModal() {
-  return gridModal().flat()
+  return flattenRows(gridModal())
 }
 
 function obtenerElementosZonas() {
   const esGridFilas = gridCatalogo.classList.contains('flex')
-  return {
+  const zonas = {
     MENU: Array.from(document.querySelectorAll('#top-nav button, #top-nav input')).filter(
       esVisibleTV
     ),
@@ -1505,9 +1584,16 @@ function obtenerElementosZonas() {
         ),
     PAGINACION: Array.from(
       document.querySelectorAll('#contenedor-paginacion button:not([disabled])')
-    ).filter(esVisibleTV),
-    MODAL: obtenerElementosModal()
+    ).filter(esVisibleTV)
   }
+  Object.defineProperty(zonas, 'MODAL', {
+    get: function () {
+      return obtenerElementosModal()
+    },
+    enumerable: true,
+    configurable: true
+  })
+  return zonas
 }
 
 function enfocarModalInicial() {
@@ -1664,11 +1750,7 @@ function enfocarElemento(elemento) {
       modalScroll.scrollTop -= modalRect.top - rect.top + margen
     }
   } else {
-    elemento.scrollIntoView({
-      behavior: 'smooth',
-      block: enCarrusel ? 'nearest' : enNav ? 'nearest' : 'center',
-      inline: 'center'
-    })
+    scrollIntoViewTV(elemento, enCarrusel || enNav)
     if (enCarrusel || elemento.closest('#grid-catalogo.flex')) {
       scrollMainAVista(elemento)
     }
@@ -1680,15 +1762,11 @@ function enfocarElemento(elemento) {
     const wrap = target.parentElement
     if (wrap) {
       const left = wrap.offsetLeft - strip.clientWidth / 2 + wrap.offsetWidth / 2
-      strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
+      scrollToLeft(strip, Math.max(0, left))
     }
   }
   if (elemento.tagName !== 'INPUT' || modoEdicion) {
-    if (elemento.tagName === 'SELECT' || elemento.type === 'range') {
-      elemento.focus({ preventScroll: true })
-    } else {
-      elemento.focus({ preventScroll: true })
-    }
+    focusTV(elemento)
   }
 }
 
@@ -2049,7 +2127,7 @@ window.addEventListener('keydown', (e) => {
         return
       }
     } else if (e.key === 'ArrowUp') {
-      if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' })
+      if (mainScroll) scrollToTop(mainScroll)
       e.preventDefault()
       return
     }
@@ -2059,9 +2137,7 @@ window.addEventListener('keydown', (e) => {
   else if (zonaActual === 'TOP') {
     if (isEnterKey(e)) {
       if (elActual.tagName === 'SELECT') {
-        try {
-          elActual.showPicker()
-        } catch (err) {}
+        abrirSelectNativo(elActual)
         return
       }
       elActual.click()
@@ -2158,11 +2234,7 @@ window.addEventListener('keydown', (e) => {
       const target = grid[modalFila][modalCol]
       if (target?.tagName === 'SELECT') {
         modoEdicion = true
-        try {
-          target.showPicker()
-        } catch (err) {
-          target.focus()
-        }
+        abrirSelectNativo(target)
         enfocarElemento(target)
         e.preventDefault()
         return
@@ -2313,4 +2385,30 @@ window.addEventListener('nexus:player-ep-overlay', (e) => {
 
 initSettingsModule({ onGuardado: manejarApiGuardada })
 
-inicializarApp()
+var splashFailsafeTimer = setTimeout(function () {
+  var splash = document.getElementById('splash-carga')
+  if (!splash || !splash.parentNode) return
+  bootError('Failsafe 50s', 'Tiempo de espera agotado — API: ' + getApiUrl())
+  mostrarInicioSinServidor(
+    'El servidor no respondió a tiempo. URL activa: ' + getApiUrl()
+  )
+  finalizarCargaInicial(splash)
+}, 50000)
+
+try {
+  bootTrace('Bootstrap', 'llamando inicializarApp()')
+  inicializarApp()
+    .then(function () {
+      bootTrace('Bootstrap', 'inicializarApp completado')
+    })
+    .catch(function (e) {
+      bootFatal(e)
+    })
+    .then(function () {
+      clearTimeout(splashFailsafeTimer)
+    })
+} catch (e) {
+  console.error(e)
+  bootFatal(e)
+  clearTimeout(splashFailsafeTimer)
+}

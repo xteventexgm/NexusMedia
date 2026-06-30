@@ -1,4 +1,5 @@
 import { getApiUrl } from '../config/api.js'
+import { bootTrace, bootError } from '../utils/bootDebug.js'
 
 let toastErrorTimer
 let toastOkTimer
@@ -42,20 +43,72 @@ export function mostrarToastExito(mensaje) {
 
 export async function apiFetch(ruta, opciones) {
   if (opciones === undefined) opciones = {}
+  var timeoutMs = opciones.timeout || 35000
+  var fetchOpts = {}
+  for (var k in opciones) {
+    if (k !== 'timeout') fetchOpts[k] = opciones[k]
+  }
+  fetchOpts.timeout = timeoutMs
+
+  var base = getApiUrl()
+  var url = base + ruta
+
+  bootTrace('API URL', base)
+  bootTrace('Voy a solicitar catálogo', url)
+  bootTrace('navigator.onLine', String(navigator.onLine))
+  bootTrace('fetch → inicio', ruta + ' (timeout ' + timeoutMs + 'ms)')
+
   try {
-    const res = await fetch(getApiUrl() + ruta, opciones)
+    var res = await fetch(url, fetchOpts)
+    bootTrace(
+      'fetch → HTTP',
+      res.status + ' ' + (res.statusText || '') + (res.ok ? ' OK' : ' ERROR')
+    )
+
+    var text = await res.text()
+    var preview = text.length > 280 ? text.slice(0, 280) + '…[' + text.length + ' chars]' : text
+    bootTrace('fetch → body (text)', preview || '(vacío)')
+
     if (!res.ok) {
-      const detalle = await res.text().catch(function () {
-        return ''
-      })
-      throw new Error(detalle || 'Error del servidor (' + res.status + ')')
+      var httpErr = new Error(text || 'Error del servidor (' + res.status + ')')
+      bootError('HTTP ' + res.status + ' en ' + ruta, httpErr)
+      throw httpErr
     }
-    return await res.json()
+
+    if (!text || !text.trim()) {
+      var vacioErr = new Error('Respuesta vacía del servidor')
+      bootError('body vacío en ' + ruta, vacioErr)
+      throw vacioErr
+    }
+
+    var data
+    try {
+      data = JSON.parse(text)
+    } catch (parseErr) {
+      bootError('JSON.parse en ' + ruta, parseErr)
+      bootTrace('JSON inválido — body completo (500)', text.slice(0, 500))
+      throw parseErr
+    }
+
+    var resumen =
+      Array.isArray(data) ? data.length + ' items' : data && typeof data === 'object' ? 'object' : typeof data
+    bootTrace('Catálogo recibido', ruta + ' → ' + resumen)
+    return data
   } catch (err) {
-    const msg =
-      err.message === 'Failed to fetch'
-        ? 'No se pudo conectar con el motor de contenido. Verifica la URL del servidor en ajustes.'
-        : err.message || 'Error de conexión con el servidor'
+    bootError('fetch falló: ' + ruta, err)
+
+    var msg = err.message || 'Error de conexión con el servidor'
+    if (msg === 'Failed to fetch' || msg === 'Network request failed') {
+      msg =
+        'No se pudo conectar (red/TLS/CORS). URL: ' +
+        url +
+        ' — Verifica Ajustes y que no sea localhost.'
+      bootTrace('Posible causa', 'TLS/CORS/red — el navegador TV ≠ WebView app')
+    }
+    if (/access-control|CORS/i.test(msg)) {
+      bootTrace('CORS', 'El servidor debe enviar Access-Control-Allow-Origin')
+    }
+
     mostrarErrorApi(msg)
     throw err
   }

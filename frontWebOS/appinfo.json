@@ -1,6 +1,6 @@
 {
   "id": "com.nexusmedia.webos",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "vendor": "NexusMedia",
   "type": "web",
   "main": "index.html",
@@ -8,5 +8,5 @@
   "icon": "icon.png",
   "largeIcon": "icon.png",
   "bgColor": "#0a0a0c",
-  "resolution": "1920x1080"
+  "resolution": "1280x720"
 }

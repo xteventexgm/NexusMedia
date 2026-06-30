@@ -1,7 +1,7 @@
 import { apiFetch } from '../services/apiClient.js'
 import { libraryApi } from '../storage/library.js'
 import { isBackKey, isEnterKey, isDeleteKey } from '../utils/keys.js'
-import { activarTecladoVirtual } from '../utils/platform.js'
+import { activarTecladoVirtual, scrollIntoViewTV } from '../utils/platform.js'
 import { attachStream, destroyStreamHandle, prepareVideoForPlayback } from '../utils/hlsPlayback.js'
 import { bindPosterImage } from '../utils/images.js'
 
@@ -592,7 +592,7 @@ export function initTvModule() {
     if (el) {
       el.classList.add('tv-foco', ...TV_FOCO)
       if (el === tvBuscador && tvModoEdicion) el.classList.add('foco-edicion', 'tv-buscador-activo')
-      el.scrollIntoView({ behavior: 'auto', block: 'nearest' })
+      scrollIntoViewTV(el, true)
     }
   }
 
@@ -603,7 +603,7 @@ export function initTvModule() {
     const el = els[tvFocoOverlay]
     if (el) {
       el.classList.add('bg-sky-500/40')
-      el.scrollIntoView({ behavior: 'auto', block: 'nearest' })
+      scrollIntoViewTV(el, true)
     }
   }
 

@@ -7,7 +7,8 @@ export default defineConfig({
     legacy({
       targets: ['chrome >= 38', 'android >= 4.4'],
       additionalLegacyPolyfills: ['regenerator-runtime/runtime'],
-      modernPolyfills: true,
+      modernPolyfills: false,
+      polyfills: false,
       // Solo bundles ES5: ares-package no puede minificar JS moderno (type=module)
       renderModernChunks: false
     })
@@ -15,13 +16,12 @@ export default defineConfig({
   build: {
     target: 'es2015',
     cssTarget: 'chrome38',
+    cssCodeSplit: false,
     outDir: 'dist',
     rollupOptions: {
       output: {
-        manualChunks: function (id) {
-          if (id.includes('node_modules/hls.js')) return 'hls'
-          if (id.includes('src/modules/player.js')) return 'player'
-        }
+        // Un solo JS legacy: evita import() dinámico que requiere fetch en la TV
+        inlineDynamicImports: true
       }
     }
   },

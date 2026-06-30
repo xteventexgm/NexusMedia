@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:ipk": "vite build && node scripts/prepare-ipk.mjs",
+    "build:ipk": "vite build && node scripts/build-tv-css.mjs && node scripts/prepare-ipk.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
