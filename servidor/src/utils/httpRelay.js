@@ -19,7 +19,12 @@ const RELAY_HOSTS = [
   'streamtape.to',
   'strtape.cloud',
   'watchsb.com',
-  'sblona.com'
+  'sblona.com',
+  'uqload.co',
+  'uqload.to',
+  'doodstream.com',
+  'dood.watch',
+  'dsvplay.com'
 ];
 
 function hostNeedsRelay(url) {

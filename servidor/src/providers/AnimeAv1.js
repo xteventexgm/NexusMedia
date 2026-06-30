@@ -133,7 +133,13 @@ class AnimeAv1 extends ProviderBase {
         urlFinal = `https://player.zilla-networks.com/m3u8/${idVideo}`;
       }
 
-      servidores.push({ nombre: match[1], url: urlFinal });
+      const esHls = /\.m3u8|zilla-networks/i.test(urlFinal);
+      servidores.push({
+        nombre: esHls ? `Auto-Play HLS [${match[1]}]` : match[1],
+        url: urlFinal,
+        referer: urlFinal,
+        hls: esHls
+      });
     }
     return servidores;
   }

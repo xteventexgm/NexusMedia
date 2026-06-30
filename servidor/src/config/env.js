@@ -29,5 +29,10 @@ module.exports = {
   doramasFlixRelayKey: process.env.DORAMASFLIX_RELAY_KEY || process.env.DORAMAS_RELAY_KEY || '',
   embed69RelayUrl: process.env.EMBED69_RELAY_URL || '',
   embed69RelayKey: process.env.EMBED69_RELAY_KEY || '',
-  nexusPublicUrl: (process.env.NEXUS_PUBLIC_URL || '').replace(/\/$/, '')
+  nexusPublicUrl: (
+    process.env.NEXUS_PUBLIC_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '') ||
+    ''
+  ).replace(/\/$/, '')
 };

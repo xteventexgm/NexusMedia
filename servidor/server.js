@@ -8,9 +8,10 @@ const {
   isStreamUrl,
   wrapStreamUrl,
   rewriteM3u8Playlist,
-  proxyStreamRequest
+  proxyStreamRequest,
+  resolvePublicApiBase
 } = require('./src/utils/streamProxy');
-const { sortServersHlsFirst } = require('./src/utils/hlsResolver');
+const { sortServersHlsFirst, isPlayableStreamUrl } = require('./src/utils/hlsResolver');
 
 process.on('uncaughtException', (err) => {
     console.error('[ERROR] uncaughtException:', err?.stack || err);
@@ -391,56 +392,117 @@ app.get('/api/providers/:id/details', checkProvider, async (req, res) => {
 app.get('/api/providers/:id/watch', checkProvider, async (req, res) => {
     try {
         if (!req.query.url) return res.status(400).json({ error: "Falta el parámetro 'url'" });
-        const raw = await req.provider.getEnlaces(req.query.url);
-        const apiBase = config.nexusPublicUrl || `${req.protocol}://${req.get('host')}`;
+        const episodeUrl = req.query.url;
+        console.log('[/watch] inicio', {
+            provider: req.params.id,
+            episodeUrl: String(episodeUrl).slice(0, 120)
+        });
+
+        const raw = await req.provider.getEnlaces(episodeUrl);
+        const apiBase = resolvePublicApiBase(req);
+
         const normalized = (raw || [])
             .map((s) => ({
                 nombre: s.nombre || s.server || s.name || 'Servidor',
                 url: s.url || s.link || '',
-                referer: s.referer || '',
+                referer: s.referer || s.url || '',
                 hls: s.hls
             }))
             .filter((s) => s.url);
 
         const sorted = sortServersHlsFirst(normalized);
         const data = sorted.map((s) => {
-            if (!isStreamUrl(s.url)) return { nombre: s.nombre, url: s.url };
-            return {
+            const originalUrl = s.url;
+            const referer = s.referer || originalUrl;
+
+            if (!isStreamUrl(originalUrl)) {
+                console.log('[/watch] iframe', {
+                    provider: req.params.id,
+                    nombre: s.nombre,
+                    url: originalUrl.slice(0, 100)
+                });
+                return { nombre: s.nombre, url: originalUrl };
+            }
+
+            if (!isPlayableStreamUrl(originalUrl)) {
+                console.warn('[/watch] marcado HLS pero no es stream reproducible', {
+                    nombre: s.nombre,
+                    url: originalUrl.slice(0, 100)
+                });
+                return { nombre: s.nombre, url: originalUrl };
+            }
+
+            const finalUrl = wrapStreamUrl(originalUrl, apiBase, referer);
+            console.log('[/watch] HLS', {
+                provider: req.params.id,
                 nombre: s.nombre,
-                url: wrapStreamUrl(s.url, apiBase, s.referer || s.url)
-            };
+                urlOriginal: originalUrl.slice(0, 100),
+                urlFinal: finalUrl.slice(0, 120),
+                referer: referer.slice(0, 80),
+                apiBase
+            });
+            return { nombre: s.nombre, url: finalUrl };
         });
+
         if (!data.length) {
-            console.warn(
-                `[/watch] ${req.params.id} sin servidores:`,
-                String(req.query.url).slice(0, 100)
-            );
+            console.warn('[/watch] sin servidores', {
+                provider: req.params.id,
+                episodeUrl: String(episodeUrl).slice(0, 100)
+            });
+        } else {
+            const hlsCount = data.filter((s) => /stream\/proxy|\.m3u8/i.test(s.url)).length;
+            console.log('[/watch] listo', {
+                provider: req.params.id,
+                total: data.length,
+                hls: hlsCount
+            });
         }
+
         res.json(data);
     } catch (error) {
-        console.error(`[/watch] ${req.params.id}:`, error.message);
+        console.error('[/watch] error', {
+            provider: req.params.id,
+            status: error.response?.status,
+            message: error.message,
+            stack: error.stack
+        });
         res.status(500).json({ error: error.message });
     }
 });
 
 app.options('/api/stream/proxy', cors(corsOptions));
 app.get('/api/stream/proxy', async (req, res) => {
+    const targetUrl = req.query.url;
+    const referer = req.query.referer || '';
+
     try {
-        const targetUrl = req.query.url;
         if (!targetUrl) return res.status(400).send('Missing url');
 
-        const referer = req.query.referer || '';
-        const { data, contentType } = await proxyStreamRequest(targetUrl, referer);
+        console.log('[STREAM PROXY]', {
+            url: targetUrl,
+            referer
+        });
+
+        const { data, contentType, status } = await proxyStreamRequest(targetUrl, referer);
         const isM3u8 =
             /\.m3u8(\?|$)/i.test(targetUrl) ||
             /mpegurl|m3u8/i.test(contentType);
+
+        console.log('[STREAM PROXY] ok', {
+            url: targetUrl,
+            referer,
+            status,
+            contentType,
+            isM3u8,
+            bytes: data?.byteLength || data?.length || 0
+        });
 
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
         res.setHeader('Cache-Control', 'no-cache');
 
         if (isM3u8) {
-            const apiBase = config.nexusPublicUrl || `${req.protocol}://${req.get('host')}`;
+            const apiBase = resolvePublicApiBase(req);
             const body = rewriteM3u8Playlist(
                 Buffer.from(data).toString('utf8'),
                 targetUrl,
@@ -454,8 +516,15 @@ app.get('/api/stream/proxy', async (req, res) => {
         res.setHeader('Content-Type', contentType || 'application/octet-stream');
         res.send(data);
     } catch (error) {
-        console.error('[stream/proxy]', error.message);
-        res.status(502).send('Proxy error');
+        console.error('[STREAM PROXY] error', {
+            url: targetUrl,
+            referer,
+            status: error.response?.status,
+            contentType: error.response?.headers?.['content-type'],
+            headers: error.response?.headers,
+            message: error.message
+        });
+        res.status(error.response?.status === 403 ? 403 : 502).send('Proxy error');
     }
 });
 
@@ -502,9 +571,15 @@ app.listen(config.port, config.host, () => {
     } else if (process.env.RENDER && providers.doramasflix) {
         console.log('  ⚠ DoramasFlix: sin relay (IP Render suele estar bloqueada)');
     }
-    const publicUrl = process.env.NEXUS_PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RENDER_EXTERNAL_URL;
-    if (publicUrl) {
-        console.log(`  URL pública:  ${publicUrl.replace(/\/$/, '')}`);
+    if (config.embed69RelayUrl) {
+        console.log(`  Embed69 relay:   ${config.embed69RelayUrl}`);
+    } else if (process.env.RENDER && providers.pelisplushd) {
+        console.log('  ⚠ PelisplusHD: sin EMBED69_RELAY_URL (embed69 bloquea IP Render)');
+    }
+    if (config.nexusPublicUrl) {
+        console.log(`  HLS proxy base: ${config.nexusPublicUrl}`);
+    } else if (config.isProduction || process.env.RENDER) {
+        console.log('  ⚠ FALTA NEXUS_PUBLIC_URL — el proxy HLS no funcionará en WebOS/TV');
     }
     console.log('═══════════════════════════════════════════');
 });

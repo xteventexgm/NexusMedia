@@ -248,7 +248,7 @@ class TvEnVivo extends ProviderBase {
     await this.cargar()
     const canal = this.canales.find((c) => c.url === urlEpisodio)
     if (!canal) return []
-    return [{ nombre: `🔴 ${canal.titulo} (Directo)`, url: canal.stream }]
+    return [{ nombre: `🔴 ${canal.titulo} (Directo)`, url: canal.stream, referer: canal.stream, hls: /\.m3u8/i.test(canal.stream || '') }]
   }
 
   // ---------- DATOS PARA LA VISTA IPTV DEDICADA ----------

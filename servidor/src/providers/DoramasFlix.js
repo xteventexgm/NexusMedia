@@ -352,7 +352,7 @@ class DoramasFlix extends ProviderBase {
             const urlCorregida = this.fixHostsLinks(item.link);
             const idioma = this.getLangById(item.lang || item.server);
 
-            if (/vidhide|streamwish|filemoon|streamtape|strtape|stape|minochinos/i.test(urlCorregida)) {
+            if (/vidhide|streamwish|filemoon|streamtape|strtape|stape|minochinos|uqload|dood|voe/i.test(urlCorregida)) {
                 const hls = await resolveEmbedToStream(urlCorregida, {
                     label: `Auto-Play HLS [${idioma}]`,
                     referer: urlCorregida

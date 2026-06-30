@@ -373,7 +373,7 @@ class PelisplusHD extends ProviderBase {
           } catch (e) {
             console.warn("[PelisplusHD] embed69:", e.message);
           }
-        } else if (/vidhide|streamwish|filemoon|streamtape|strtape|stape|minochinos/i.test(url)) {
+        } else if (/vidhide|streamwish|filemoon|streamtape|strtape|stape|minochinos|uqload|dood|voe/i.test(url)) {
           let host = "Externo";
           try {
             host = new URL(url).hostname.split(".")[0];
