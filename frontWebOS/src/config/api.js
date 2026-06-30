@@ -4,7 +4,10 @@
  */
 export function getDefaultApiUrl() {
   var env = import.meta.env.VITE_API_URL
-  return env || 'http://localhost:3000/api'
+  var base = env || 'http://localhost:3000/api'
+  base = base.trim().replace(/\/$/, '')
+  if (!/\/api$/i.test(base)) base = base + '/api'
+  return base
 }
 
 export function getApiUrl() {

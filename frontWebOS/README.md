@@ -25,16 +25,31 @@ Configura la URL del API en `.env` (`VITE_API_URL`) o desde **Ajustes ⚙** en l
 localStorage.setItem('api_url', 'http://192.168.1.10:3000/api')
 ```
 
-## Build
+## Build e IPK (LG WebOS)
 
 ```bash
-npm run build
+npm run build:ipk
 ```
 
-Salida en `dist/` — lista para empaquetar con webOS CLI (fase posterior).
+1. Añade **`public/icon.png`** (130×130 px) — obligatorio para empaquetar.
+2. La salida queda en **`dist/`** con `appinfo.json`, `index.html` y assets.
+3. Con [webOS CLI](https://webostv.developer.lge.com/develop/tools/cli-dev-guide) instalado:
 
-**Bundle inicial (Fase 2):** ~55 KB JS + ~121 KB polyfills (hls.js y player se cargan solo al reproducir).
+```bash
+cd dist
+ares-package .
+ares-install --device TU_TV com.nexusmedia.webos_1.0.0_all.ipk
+```
 
-## Empaquetado WebOS
+**Checklist IPK**
 
-`appinfo.json` está preparado. Añade `public/icon.png` (130×130) antes de empaquetar.
+| Requisito | Estado |
+|-----------|--------|
+| `appinfo.json` | ✓ |
+| `base: './'` en Vite | ✓ |
+| Polyfills Chrome 38 (legacy) | ✓ |
+| hls.js para streams | ✓ |
+| `public/icon.png` 130×130 | ⚠ Falta — añadir antes de empaquetar |
+| `VITE_API_URL` con `/api` | ✓ (se normaliza solo) |
+
+Configura la URL del API en `.env` o en **Ajustes ⚙** en la TV.

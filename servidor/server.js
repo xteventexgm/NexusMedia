@@ -43,60 +43,6 @@ app.get('/health', (_req, res) => {
     });
 });
 
-// Proxy HLS/segmentos — evita CORS y añade Referer para CDNs (p2pplay, etc.)
-const streamProxy = require('./src/utils/streamProxy');
-
-app.get('/api/stream/proxy', async (req, res) => {
-    const target = req.query.url;
-    if (!target) return res.status(400).json({ error: 'Falta url' });
-    if (!streamProxy.isAllowedStreamUrl(target)) {
-        return res.status(403).json({ error: 'Host de stream no permitido' });
-    }
-
-    const referer = req.query.referer || streamProxy.defaultReferer(target);
-
-    try {
-        const { data, isManifest, contentType } = await streamProxy.fetchStreamResource(target, referer);
-
-        res.set('Access-Control-Allow-Origin', config.corsOrigin === '*' ? '*' : (config.corsOrigin.split(',')[0] || '*'));
-        res.set('Cache-Control', 'no-cache');
-
-        if (isManifest && typeof data === 'string') {
-            const rewritten = streamProxy.rewriteM3u8Playlist(data, target, referer);
-            res.set('Content-Type', 'application/vnd.apple.mpegurl');
-            return res.send(rewritten);
-        }
-
-        res.set('Content-Type', contentType || 'application/octet-stream');
-        return res.send(Buffer.from(data));
-    } catch (err) {
-        console.error('[StreamProxy]', target.slice(0, 80), err.message);
-        res.status(502).json({ error: 'No se pudo obtener el stream' });
-    }
-});
-
-// Relay DoramasFlix: Render (IP bloqueada) → tu Docker local (IP residencial)
-if (config.doramasRelayEnabled && config.doramasFlixRelayKey) {
-    const { directGqlRequest } = require('./src/utils/doramasApi');
-
-    app.post('/api/relay/doramas-gql', async (req, res) => {
-        const key = req.get('X-Relay-Key') || '';
-        if (key !== config.doramasFlixRelayKey) {
-            return res.status(401).json({ error: 'Relay key inválida' });
-        }
-        try {
-            const op = req.body?.operationName || 'relay';
-            const data = await directGqlRequest(req.body, op);
-            res.json(data);
-        } catch (err) {
-            console.error('[Relay DoramasFlix]', err.message);
-            res.status(502).json({ error: err.message || 'Relay falló' });
-        }
-    });
-
-    console.log('🔀 Relay DoramasFlix activo en POST /api/relay/doramas-gql');
-}
-
 // ==========================================
 // CARGA AUTOMÁTICA DE EXTENSIONES
 // Para añadir una extensión nueva en el futuro, basta con crear un archivo
@@ -484,15 +430,13 @@ app.listen(config.port, config.host, () => {
     console.log(`  API:        http://${localHost}:${config.port}/api`);
     console.log(`  Extensiones: ${Object.keys(providers).length}`);
     if (config.doramasFlixRelayUrl) {
-        console.log(`  DoramasFlix: relay → ${config.doramasFlixRelayUrl}`);
-    } else if (process.env.RENDER) {
+        console.log(`  DoramasFlix relay: ${config.doramasFlixRelayUrl}`);
+    } else if (process.env.RENDER && providers.doramasflix) {
         console.log('  ⚠ DoramasFlix: sin relay (IP Render suele estar bloqueada)');
     }
     const publicUrl = process.env.NEXUS_PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RENDER_EXTERNAL_URL;
     if (publicUrl) {
         console.log(`  URL pública:  ${publicUrl.replace(/\/$/, '')}`);
-    } else {
-        console.log('  ⚠ NEXUS_PUBLIC_URL no definida (proxy HLS usará URL directa)');
     }
     console.log('═══════════════════════════════════════════');
 });
