@@ -2,6 +2,7 @@ const ProviderBase = require("./ProviderBase");
 const axios = require("axios");
 const cheerio = require("cheerio");
 const crypto = require("crypto");
+const config = require("../config/env");
 const { extraerVideoDirecto } = require("../utils/extractor");
 
 class PelisplusHD extends ProviderBase {
@@ -218,112 +219,107 @@ class PelisplusHD extends ProviderBase {
     const targetUrl = urlEpisodio.startsWith("http")
       ? urlEpisodio
       : `${this.baseUrl}${urlEpisodio}`;
-    const { data } = await axios.get(targetUrl);
-    const $ = cheerio.load(data);
     const servidores = [];
+    const httpOpts = { timeout: config.httpTimeoutMs };
 
-    const scriptHtml =
-      $("script")
-        .filter((i, el) => $(el).html().includes("var video ="))
-        .html() || "";
-    // Extrae todas las URLs del código fuente
-    let urlsCrudas = scriptHtml.match(/https?:\/\/[^"'\s<>]+/g) || [];
-    urlsCrudas = [...new Set(urlsCrudas)];
+    try {
+      const { data } = await axios.get(targetUrl, httpOpts);
+      const $ = cheerio.load(data);
 
-    // Procesamos la lista secuencialmente para poder "desenrollar" escudos como xupalace
-    for (let i = 0; i < urlsCrudas.length; i++) {
-      const url = urlsCrudas[i];
+      const scriptHtml =
+        $("script")
+          .filter((i, el) => $(el).html().includes("var video ="))
+          .html() || "";
+      let urlsCrudas = scriptHtml.match(/https?:\/\/[^"'\s<>]+/g) || [];
+      urlsCrudas = [...new Set(urlsCrudas)];
 
-      // 1. SI ES UN ESCUDO (XuPalace), lo rompemos y agregamos la url real a la lista
-      if (url.includes("xupalace") || url.includes("uqlink")) {
-        try {
-          const resXu = await axios.get(url);
-          const matchGoTo = resXu.data.match(
-            /(?:go_to_player|go_to_playerVast)\('([^']+)'/,
-          );
-          if (matchGoTo && matchGoTo[1]) {
-            urlsCrudas.push(this.fixHostsLinks(matchGoTo[1])); // Inyecta el link real para que el loop lo evalúe
-          } else {
-            // Plan B: Buscar Iframe directo
-            const iframeSrc = cheerio.load(resXu.data)("iframe").attr("src");
-            if (iframeSrc) urlsCrudas.push(this.fixHostsLinks(iframeSrc));
-          }
-        } catch (e) {}
-      }
+      for (let i = 0; i < urlsCrudas.length; i++) {
+        const url = urlsCrudas[i];
 
-      // 2. SI ES EMBED69, aplicamos fuerza bruta y desencriptamos
-      else if (url.includes("embed69")) {
-        try {
-          console.log("[Embed69] Desencriptando...");
-          const resEmbed = await axios.get(url);
-          const embedHtml = resEmbed.data;
-
-          const challengeMatch = embedHtml.match(
-            /const POW_CHALLENGE = '([^']+)'/,
-          );
-          const diffMatch = embedHtml.match(/const POW_DIFFICULTY = (\d+)/);
-          const saltMatch = embedHtml.match(/const POW_SALT = '([^']+)'/);
-          const dataLinkMatch = embedHtml.match(/dataLink = (\[.*?\]);/);
-
-          if (challengeMatch && diffMatch && saltMatch && dataLinkMatch) {
-            const aesKey = this.derivarLlaveAes(
-              challengeMatch[1],
-              parseInt(diffMatch[1]),
-              saltMatch[1],
+        if (url.includes("xupalace") || url.includes("uqlink")) {
+          try {
+            const resXu = await axios.get(url, httpOpts);
+            const matchGoTo = resXu.data.match(
+              /(?:go_to_player|go_to_playerVast)\('([^']+)'/,
             );
-            if (aesKey) {
-              const dataLink = JSON.parse(dataLinkMatch[1]);
-              for (const lang of dataLink) {
-                const idioma = lang.video_language || "Latino";
-                for (const embed of lang.sortedEmbeds || []) {
-                  const linkLimpio = this.desencriptarAES(embed.link, aesKey);
-                  if (!linkLimpio) continue;
+            if (matchGoTo && matchGoTo[1]) {
+              urlsCrudas.push(this.fixHostsLinks(matchGoTo[1]));
+            } else {
+              const iframeSrc = cheerio.load(resXu.data)("iframe").attr("src");
+              if (iframeSrc) urlsCrudas.push(this.fixHostsLinks(iframeSrc));
+            }
+          } catch (_) {}
+        } else if (url.includes("embed69")) {
+          try {
+            const resEmbed = await axios.get(url, httpOpts);
+            const embedHtml = resEmbed.data;
 
-                  const urlReal = this.fixHostsLinks(linkLimpio);
+            const challengeMatch = embedHtml.match(
+              /const POW_CHALLENGE = '([^']+)'/,
+            );
+            const diffMatch = embedHtml.match(/const POW_DIFFICULTY = (\d+)/);
+            const saltMatch = embedHtml.match(/const POW_SALT = '([^']+)'/);
+            const dataLinkMatch = embedHtml.match(/dataLink = (\[.*?\]);/);
 
-                  // Intentamos sacar el HLS directo del embed para que se reproduzca solo
-                  const directo = await extraerVideoDirecto(urlReal);
-                  if (directo) {
-                    servidores.unshift({
-                      nombre: `Auto-Play HLS [${idioma}]`,
-                      url: directo,
-                    });
-                  } else {
-                    let host = "Externo";
-                    try {
-                      host = new URL(urlReal).hostname.split(".")[0];
-                    } catch (e) {}
-                    servidores.push({
-                      nombre: `Servidor: ${host} [${idioma}]`,
-                      url: urlReal,
-                    });
+            if (challengeMatch && diffMatch && saltMatch && dataLinkMatch) {
+              const aesKey = this.derivarLlaveAes(
+                challengeMatch[1],
+                parseInt(diffMatch[1]),
+                saltMatch[1],
+              );
+              if (aesKey) {
+                const dataLink = JSON.parse(dataLinkMatch[1]);
+                for (const lang of dataLink) {
+                  const idioma = lang.video_language || "Latino";
+                  for (const embed of lang.sortedEmbeds || []) {
+                    const linkLimpio = this.desencriptarAES(embed.link, aesKey);
+                    if (!linkLimpio) continue;
+
+                    const urlReal = this.fixHostsLinks(linkLimpio);
+                    const directo = await extraerVideoDirecto(urlReal);
+                    if (directo) {
+                      servidores.unshift({
+                        nombre: `Auto-Play HLS [${idioma}]`,
+                        url: directo,
+                      });
+                    } else {
+                      let host = "Externo";
+                      try {
+                        host = new URL(urlReal).hostname.split(".")[0];
+                      } catch (_) {}
+                      servidores.push({
+                        nombre: `Servidor: ${host} [${idioma}]`,
+                        url: urlReal,
+                      });
+                    }
                   }
                 }
               }
             }
+          } catch (e) {
+            console.warn("[PelisplusHD] embed69:", e.message);
           }
-        } catch (e) {
-          console.log("[Embed69] Fallo desencriptación.");
+        } else if (/vidhide|streamwish|filemoon|streamtape|strtape|stape/i.test(url)) {
+          let host = "Externo";
+          try {
+            host = new URL(url).hostname.split(".")[0];
+          } catch (_) {}
+          const videoReal = await extraerVideoDirecto(url);
+          if (videoReal) {
+            servidores.unshift({
+              nombre: `Auto-Play HLS [${host}]`,
+              url: videoReal,
+            });
+          } else {
+            servidores.push({
+              nombre: `Servidor Externo: ${host}`,
+              url: url,
+            });
+          }
         }
       }
-
-      // 3. HOSTS CONOCIDOS: intentamos sacar el HLS/MP4 directo para que se reproduzca
-      //    solo (autoplay), igual que el anime. Si falla, dejamos el iframe.
-      else if (/vidhide|streamwish|filemoon|streamtape|strtape|stape/i.test(url)) {
-        const host = new URL(url).hostname.split(".")[0];
-        const videoReal = await extraerVideoDirecto(url);
-        if (videoReal) {
-          servidores.unshift({
-            nombre: `Auto-Play HLS [${host}]`,
-            url: videoReal,
-          });
-        } else {
-          servidores.push({
-            nombre: `Servidor Externo: ${host}`,
-            url: url,
-          });
-        }
-      }
+    } catch (error) {
+      console.error("[PelisplusHD] getEnlaces:", error.message);
     }
 
     return servidores;

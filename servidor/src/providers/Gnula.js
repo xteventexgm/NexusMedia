@@ -1,6 +1,8 @@
 const ProviderBase = require("./ProviderBase");
 const axios = require("axios");
 const cheerio = require("cheerio");
+const config = require("../config/env");
+const { extraerVideoDirecto } = require("../utils/extractor");
 
 class Gnula extends ProviderBase {
     constructor() {
@@ -209,33 +211,28 @@ class Gnula extends ProviderBase {
         try {
             const { data } = await axios.get(targetUrl, {
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-                timeout: 10000
+                timeout: config.httpTimeoutMs
             });
-            
-            // Regex para var _gnpv_ep_langs = [...] o var _gd = [...]
+
             const regex = /var\s+(_gnpv_ep_langs|_gd)\s*=\s*(\[.*?\]);/s;
             const match = data.match(regex);
-            
-            const links = [];
+
+            const crudos = [];
             if (match && match[2]) {
-                const jsonStr = match[2];
                 try {
-                    const langs = JSON.parse(jsonStr);
-                    langs.forEach(langObj => {
-                        const label = langObj.label;
+                    const langs = JSON.parse(match[2]);
+                    langs.forEach((langObj) => {
+                        const label = langObj.label || 'Latino';
                         if (langObj.servers && Array.isArray(langObj.servers)) {
-                            langObj.servers.forEach(srv => {
+                            langObj.servers.forEach((srv) => {
                                 let src = srv.src;
-                                if (src) {
-                                    src = src.replace(/\\\//g, '/');
-                                    if (src.startsWith('//')) {
-                                        src = `https:${src}`;
-                                    }
-                                    links.push({
-                                        server: `${srv.title} - ${label}`,
-                                        url: src
-                                    });
-                                }
+                                if (!src) return;
+                                src = src.replace(/\\\//g, '/');
+                                if (src.startsWith('//')) src = `https:${src}`;
+                                crudos.push({
+                                    nombre: `${srv.title || 'Servidor'} [${label}]`,
+                                    url: src
+                                });
                             });
                         }
                     });
@@ -243,7 +240,30 @@ class Gnula extends ProviderBase {
                     console.error("[GnulaHD] Error parseando JSON de servidores:", e.message);
                 }
             }
-            return links;
+
+            if (!crudos.length) return [];
+
+            const servidores = await Promise.all(
+                crudos.map(async (entry) => {
+                    try {
+                        const videoReal = await extraerVideoDirecto(entry.url);
+                        if (videoReal) {
+                            return { nombre: `Auto-Play HLS [${entry.nombre}]`, url: videoReal };
+                        }
+                    } catch (_) {
+                        /* iframe fallback */
+                    }
+                    return entry;
+                })
+            );
+
+            servidores.sort((a, b) => {
+                const hlsA = /Auto-Play HLS/i.test(a.nombre) ? 1 : 0;
+                const hlsB = /Auto-Play HLS/i.test(b.nombre) ? 1 : 0;
+                return hlsB - hlsA;
+            });
+
+            return servidores.filter((s) => s && s.url);
         } catch (error) {
             console.error("[GnulaHD] Error obteniendo videos:", error.message);
             return [];

@@ -384,9 +384,22 @@ app.get('/api/providers/:id/details', checkProvider, async (req, res) => {
 app.get('/api/providers/:id/watch', checkProvider, async (req, res) => {
     try {
         if (!req.query.url) return res.status(400).json({ error: "Falta el parámetro 'url'" });
-        const data = await req.provider.getEnlaces(req.query.url);
+        const raw = await req.provider.getEnlaces(req.query.url);
+        const data = (raw || [])
+            .map((s) => ({
+                nombre: s.nombre || s.server || s.name || 'Servidor',
+                url: s.url || s.link || ''
+            }))
+            .filter((s) => s.url);
+        if (!data.length) {
+            console.warn(
+                `[/watch] ${req.params.id} sin servidores:`,
+                String(req.query.url).slice(0, 100)
+            );
+        }
         res.json(data);
     } catch (error) {
+        console.error(`[/watch] ${req.params.id}:`, error.message);
         res.status(500).json({ error: error.message });
     }
 });

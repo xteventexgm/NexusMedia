@@ -808,9 +808,9 @@ inputBuscador.addEventListener('keypress', async (e) => {
     contenedorPaginacion.classList.add('hidden')
 
     if (extensionActual === 'global' || extensionActual === 'inicio') {
-      const plano = extensionActual === 'inicio'
-      tituloSeccion.textContent = `${plano ? '🔍 Resultados' : 'Buscando en TODO'}: "${busquedaActual}"`
-      await realizarBusquedaGlobal(busquedaActual, plano)
+      tituloSeccion.textContent = `🔍 "${busquedaActual}"`
+      tituloSeccion.classList.remove('hidden')
+      await realizarBusquedaGlobal(busquedaActual)
     } else if (extensionActual) {
       paginaActual = 1
       tituloSeccion.textContent = `Buscando: "${busquedaActual}"`
@@ -819,67 +819,41 @@ inputBuscador.addEventListener('keypress', async (e) => {
   }
 })
 
-// Función que dibuja los resultados de todos los servidores.
-// plano = true -> una sola cuadrícula mezclada (modo Inicio); false -> agrupado por extensión.
-async function realizarBusquedaGlobal(query, plano = false) {
-  mostrarSkeletons(10)
+// Búsqueda global agrupada por extensión (filas estilo Inicio).
+async function realizarBusquedaGlobal(query) {
+  mostrarSkeletonFilas(3)
 
   try {
     const resultadosAgrupados = await apiFetch(`/search?q=${encodeURIComponent(query)}`)
 
+    aplicarLayoutFilas()
     gridCatalogo.innerHTML = ''
     let hayResultados = false
 
-    if (plano) {
-      resultadosAgrupados.forEach((grupo) => {
-        if (grupo.resultados && grupo.resultados.length > 0) {
-          hayResultados = true
-          grupo.resultados.forEach((item) => {
-            gridCatalogo.appendChild(crearTarjetaHTML(item, grupo.id))
-          })
-        }
-      })
-      if (!hayResultados) {
-        gridCatalogo.innerHTML =
-          '<p class="text-gray-400 col-span-full text-center py-10">No se encontró nada en ningún servidor.</p>'
-      }
-      return
-    }
-
     resultadosAgrupados.forEach((grupo) => {
-      if (grupo.resultados && grupo.resultados.length > 0) {
-        hayResultados = true
-
-        // 1. Título de la Extensión
-        const metaGrupo = metaDe(grupo.id)
-        const tituloGrupo = document.createElement('h2')
-        tituloGrupo.className =
-          'col-span-full flex items-center gap-3 text-xl font-bold mt-8 mb-4 border-b border-white/10 pb-3'
-        tituloGrupo.innerHTML = `
-          <span class="w-8 h-8 rounded-lg flex items-center justify-center text-base" style="background:${metaGrupo.color}33">${metaGrupo.icono}</span>
-          <span>${grupo.nombre}</span>
-          <span class="text-sm font-normal text-gray-500">${grupo.resultados.length} resultados</span>`
-        gridCatalogo.appendChild(tituloGrupo)
-
-        // 2. Contenedor interno para las tarjetas
-        const gridInterno = document.createElement('div')
-        gridInterno.className =
-          'col-span-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5'
-        gridCatalogo.appendChild(gridInterno)
-
-        // 3. Pintar las tarjetas de ese grupo
-        grupo.resultados.forEach((item) => {
-          const card = crearTarjetaHTML(item, grupo.id) // Forzamos que sepa de qué grupo viene
-          gridInterno.appendChild(card)
+      if (!grupo.resultados || grupo.resultados.length === 0) return
+      hayResultados = true
+      const meta = metaDe(grupo.id)
+      gridCatalogo.appendChild(
+        crearFila({
+          titulo: `Resultados en ${grupo.nombre}`,
+          icono: meta.icono,
+          color: meta.color,
+          tipo: 'provider',
+          ref: grupo.id,
+          nombre: grupo.nombre,
+          items: grupo.resultados.map((item) => ({ ...item, provider: grupo.id }))
         })
-      }
+      )
     })
 
     if (!hayResultados) {
+      aplicarLayoutGrid()
       gridCatalogo.innerHTML =
         '<p class="text-gray-400 col-span-full text-center py-10">No se encontró nada en ningún servidor.</p>'
     }
   } catch (error) {
+    aplicarLayoutGrid()
     gridCatalogo.innerHTML =
       '<p class="text-red-500 col-span-full text-center py-10">❌ Error ejecutando la búsqueda global.</p>'
   }
