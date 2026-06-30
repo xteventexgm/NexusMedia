@@ -277,21 +277,39 @@
       >
         <button
           id="tv-btn-volver"
-          class="text-gray-300 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg transition font-bold flex items-center gap-2"
+          type="button"
+          class="foco-item text-gray-300 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg transition font-bold flex items-center gap-2"
         >
           ← Volver
         </button>
         <h2 class="text-xl font-bold flex items-center gap-2">
           <span class="text-2xl">📡</span> TV en Vivo
         </h2>
-        <div class="relative ml-auto">
-          <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">🔍</span>
-          <input
-            type="text"
-            id="tv-buscador"
-            placeholder="Buscar canal..."
-            class="bg-surface border border-white/10 text-white pl-10 pr-4 py-2 w-64 focus:w-80 rounded-full focus:outline-none focus:ring-2 focus:ring-sky-500/60 transition-all"
-          />
+        <div class="ml-auto flex items-center gap-2.5">
+          <div class="relative search-wrap">
+            <span class="search-icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+              </svg>
+            </span>
+            <input
+              type="text"
+              id="tv-buscador"
+              placeholder="Buscar canal..."
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
+              dir="ltr"
+              class="search-input w-44 md:w-56 foco-item tv-buscador-input"
+            />
+          </div>
+          <button
+            type="button"
+            id="tv-btn-buscar"
+            class="btn-brand px-4 py-2.5 text-sm shrink-0 foco-item"
+          >
+            Buscar
+          </button>
         </div>
       </header>
 
@@ -431,6 +449,22 @@
       </div>
     </div>
 
+    <!-- ===================== MODAL SALIR APP ===================== -->
+    <div
+      id="modal-salir"
+      class="modal-backdrop fixed inset-0 z-[75] hidden flex items-center justify-center"
+    >
+      <div class="resume-card pop-in">
+        <div class="text-4xl mb-3">🚪</div>
+        <h3 class="resume-title">¿Salir de NexusMedia?</h3>
+        <p class="resume-desc">La aplicación se cerrará por completo.</p>
+        <div class="resume-actions">
+          <button id="btn-salir-si" type="button" class="btn-brand w-full py-3.5 foco-item">Sí, salir</button>
+          <button id="btn-salir-no" type="button" class="btn-surface w-full py-3.5 foco-item">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ===================== MODAL REANUDAR ===================== -->
     <div
       id="modal-reanudar"
@@ -439,7 +473,8 @@
       <div class="resume-card pop-in">
         <button
           id="btn-reanudar-cerrar"
-          class="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition text-lg"
+          type="button"
+          class="foco-item absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition text-lg"
           title="Cerrar (Esc)"
         >
           ✕
@@ -450,9 +485,9 @@
           Te quedaste en el minuto <span id="texto-minuto-reanudar" class="text-white font-bold"></span>.
         </p>
         <div class="resume-actions">
-          <button id="btn-reanudar-si" class="btn-brand w-full py-3.5">Reanudar</button>
-          <button id="btn-reanudar-no" class="btn-surface w-full py-3.5">Ver desde el inicio</button>
-          <button id="btn-reanudar-cancelar" class="btn-ghost w-full py-2.5 text-sm">Cancelar</button>
+          <button id="btn-reanudar-si" type="button" class="btn-brand w-full py-3.5 foco-item">Reanudar</button>
+          <button id="btn-reanudar-no" type="button" class="btn-surface w-full py-3.5 foco-item">Ver desde el inicio</button>
+          <button id="btn-reanudar-cancelar" type="button" class="btn-ghost w-full py-2.5 text-sm foco-item">Cancelar</button>
         </div>
       </div>
     </div>

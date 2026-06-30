@@ -3,14 +3,19 @@
  * LG WebOS: botón Back suele enviar keyCode 461.
  */
 
+/** Atrás del mando remoto — NO incluye Backspace (borrar en teclado virtual). */
 export function isBackKey(event) {
-  return (
-    event.key === 'Escape' ||
-    event.key === 'Backspace' ||
-    event.key === 'GoBack' ||
-    event.keyCode === 461 ||
-    event.keyCode === 10009
-  )
+  if (!event) return false
+  const k = event.key || ''
+  const kc = event.keyCode || event.which || 0
+  return k === 'Escape' || k === 'GoBack' || kc === 461 || kc === 10009
+}
+
+export function isDeleteKey(event) {
+  if (!event) return false
+  const k = event.key || ''
+  const kc = event.keyCode || event.which || 0
+  return k === 'Backspace' || k === 'Delete' || kc === 8 || kc === 46
 }
 
 /** Códigos OK/Enter en mandos LG (webOS 3–24, simulador incl.). */

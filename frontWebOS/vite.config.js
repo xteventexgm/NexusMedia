@@ -7,7 +7,9 @@ export default defineConfig({
     legacy({
       targets: ['chrome >= 38', 'android >= 4.4'],
       additionalLegacyPolyfills: ['regenerator-runtime/runtime'],
-      modernPolyfills: true
+      modernPolyfills: true,
+      // Solo bundles ES5: ares-package no puede minificar JS moderno (type=module)
+      renderModernChunks: false
     })
   ],
   build: {

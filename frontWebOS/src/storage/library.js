@@ -2,21 +2,17 @@ import { storage } from './index.js'
 
 const LIBRARY_KEY = 'library'
 
-const DEFAULT_DB = { favoritos: [], progreso: {}, historial: [] }
-
 function readDB() {
-  try {
-    const data = storage.get(LIBRARY_KEY)
-    if (!data || typeof data !== 'object') throw new Error('Formato inválido')
-    if (!Array.isArray(data.favoritos)) data.favoritos = []
-    if (!data.progreso || typeof data.progreso !== 'object') data.progreso = {}
-    if (!Array.isArray(data.historial)) data.historial = []
-    return data
-  } catch {
-    const fresh = { ...DEFAULT_DB, favoritos: [], progreso: {}, historial: [] }
+  const data = storage.get(LIBRARY_KEY)
+  if (!data || typeof data !== 'object') {
+    const fresh = { favoritos: [], progreso: {}, historial: [] }
     storage.set(LIBRARY_KEY, fresh)
     return fresh
   }
+  if (!Array.isArray(data.favoritos)) data.favoritos = []
+  if (!data.progreso || typeof data.progreso !== 'object') data.progreso = {}
+  if (!Array.isArray(data.historial)) data.historial = []
+  return data
 }
 
 function writeDB(data) {

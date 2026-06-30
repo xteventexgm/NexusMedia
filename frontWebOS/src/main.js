@@ -5,7 +5,7 @@ import './styles/main.css'
 import { apiFetch, mostrarErrorApi, mostrarToastExito } from './services/apiClient.js'
 import { libraryApi } from './storage/library.js'
 import { isBackKey, isEnterKey, isSelectKey } from './utils/keys.js'
-import { isWebOS } from './utils/platform.js'
+import { isWebOS, cerrarAppWebOS } from './utils/platform.js'
 import { bindPosterImage } from './utils/images.js'
 import { formatTime } from './utils/formatTime.js'
 import { initTvModule } from './modules/tv.js'
@@ -336,6 +336,7 @@ function crearSeccionExtensiones() {
 // INICIALIZACIÓN Y CATÁLOGO
 // ==========================================
 async function inicializarApp() {
+  if (isWebOS()) document.body.classList.add('webos-tv')
   const splash = document.getElementById('splash-carga')
   try {
     bibliotecaLocal = await libraryApi.getLibrary()
@@ -1302,7 +1303,8 @@ function opcionesReanudar() {
   return [
     document.getElementById('btn-reanudar-si'),
     document.getElementById('btn-reanudar-no'),
-    document.getElementById('btn-reanudar-cancelar')
+    document.getElementById('btn-reanudar-cancelar'),
+    document.getElementById('btn-reanudar-cerrar')
   ].filter(Boolean)
 }
 // Coloca el foco inicial al abrir el modal (se llama tras mostrarlo)
@@ -1311,8 +1313,37 @@ function enfocarReanudar() {
   setTimeout(() => {
     const ops = opcionesReanudar()
     if (ops[0]) enfocarElemento(ops[0])
-  }, 60)
+  }, 80)
 }
+
+// --- Modal salir app (Atrás en Inicio) ---
+let idxSalir = 0
+const modalSalir = document.getElementById('modal-salir')
+const btnSalirSi = document.getElementById('btn-salir-si')
+const btnSalirNo = document.getElementById('btn-salir-no')
+
+function opcionesSalir() {
+  return [btnSalirSi, btnSalirNo].filter(Boolean)
+}
+
+function mostrarModalSalir() {
+  if (!modalSalir) return
+  modalSalir.classList.remove('hidden')
+  idxSalir = 0
+  setTimeout(() => {
+    const ops = opcionesSalir()
+    if (ops[0]) enfocarElemento(ops[0])
+  }, 80)
+}
+
+function ocultarModalSalir() {
+  if (modalSalir) modalSalir.classList.add('hidden')
+  limpiarFocoTV()
+  irAMenu()
+}
+
+if (btnSalirSi) btnSalirSi.addEventListener('click', () => cerrarAppWebOS())
+if (btnSalirNo) btnSalirNo.addEventListener('click', ocultarModalSalir)
 
 // --- SISTEMA DE NAVEGACIÓN ESPACIAL POR ZONAS (TV / GAMEPAD) ---
 
@@ -1526,6 +1557,21 @@ function overlayEpisodiosEstaVisible() {
   return Player.overlayEpisodiosVisible?.() ?? false
 }
 
+function scrollMainAVista(elemento) {
+  if (!mainScroll || !elemento) return
+  const bloque = elemento.closest('section') || elemento
+  const scrollRect = mainScroll.getBoundingClientRect()
+  const elRect = bloque.getBoundingClientRect()
+  const margenTop = 110
+  const margenBottom = 130
+  if (elRect.bottom > scrollRect.bottom - margenBottom) {
+    mainScroll.scrollTop += elRect.bottom - scrollRect.bottom + margenBottom
+  }
+  if (elRect.top < scrollRect.top + margenTop) {
+    mainScroll.scrollTop -= scrollRect.top - elRect.top + margenTop
+  }
+}
+
 function enfocarElemento(elemento) {
   if (!elemento) return
   limpiarFocoTV()
@@ -1557,6 +1603,9 @@ function enfocarElemento(elemento) {
       block: enCarrusel ? 'nearest' : enNav ? 'nearest' : 'center',
       inline: 'center'
     })
+    if (enCarrusel || elemento.closest('#grid-catalogo.flex')) {
+      scrollMainAVista(elemento)
+    }
   }
   const strip = elemento.closest('.fila-scroll')
   if (strip) {
@@ -1580,6 +1629,28 @@ function enfocarElemento(elemento) {
 window.addEventListener('keydown', (e) => {
   const modalAjustesEl = document.getElementById('modal-ajustes')
   if (modalAjustesEl && !modalAjustesEl.classList.contains('hidden')) return
+
+  // --- MODAL SALIR APP ---
+  if (modalSalir && !modalSalir.classList.contains('hidden')) {
+    const ops = opcionesSalir()
+    if (isBackKey(e) || (isEnterKey(e) && idxSalir === 1)) {
+      ocultarModalSalir()
+      e.preventDefault()
+      return
+    }
+    if (idxSalir < 0) idxSalir = 0
+    if (idxSalir >= ops.length) idxSalir = ops.length - 1
+    if (e.key === 'ArrowDown') idxSalir = Math.min(idxSalir + 1, ops.length - 1)
+    else if (e.key === 'ArrowUp') idxSalir = Math.max(idxSalir - 1, 0)
+    else if (isEnterKey(e)) {
+      if (ops[idxSalir]) ops[idxSalir].click()
+      e.preventDefault()
+      return
+    }
+    if (ops[idxSalir]) enfocarElemento(ops[idxSalir])
+    e.preventDefault()
+    return
+  }
 
   const modalReproductor = document.getElementById('modal-reproductor')
 
@@ -1750,8 +1821,14 @@ window.addEventListener('keydown', (e) => {
   }
 
   // --- A PARTIR DE AQUÍ SIGUE LA NAVEGACIÓN DE LA INTERFAZ NORMAL ---
-  if (e.target && e.target.tagName === 'INPUT' && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Escape', 'GoBack', 'OK'].includes(e.key) && !isBackKey(e) && !isEnterKey(e)) {
-    return // Permitir escribir de forma nativa si un input tiene el foco (ej: mouse click)
+  if (
+    e.target &&
+    e.target.tagName === 'INPUT' &&
+    !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Escape', 'GoBack', 'OK'].includes(e.key) &&
+    !isBackKey(e) &&
+    !isEnterKey(e)
+  ) {
+    return // Permitir escribir / borrar en inputs (Backspace ya no es isBackKey)
   }
 
   const teclasFlecha = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
@@ -1770,7 +1847,21 @@ window.addEventListener('keydown', (e) => {
     modoEdicion = false
   }
 
-  // ESC: volver al Inicio si estamos en cualquier otra vista (no en modal)
+  // Atrás en Inicio → confirmar salida de la app
+  if (!modalAbierto && isBackKey(e) && extensionActual === 'inicio') {
+    const tvApp = document.getElementById('tv-app')
+    const modalDet = document.getElementById('modal-detalles')
+    const tvAbierta = tvApp && !tvApp.classList.contains('hidden')
+    const repAbierto = modalReproductor && !modalReproductor.classList.contains('hidden')
+    const detAbierto = modalDet && !modalDet.classList.contains('hidden')
+    if (!tvAbierta && !repAbierto && !detAbierto) {
+      mostrarModalSalir()
+      e.preventDefault()
+      return
+    }
+  }
+
+  // Atrás: volver al Inicio si estamos en otra vista (no en modal)
   if (
     !modalAbierto &&
     isBackKey(e) &&

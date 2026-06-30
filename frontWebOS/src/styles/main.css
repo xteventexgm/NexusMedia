@@ -386,7 +386,24 @@ body {
   }
 
   .resume-actions {
-    @apply flex flex-col gap-2.5;
+    @apply flex flex-col gap-3;
+  }
+
+  .resume-actions .foco-tv,
+  #btn-reanudar-cerrar.foco-tv,
+  #modal-salir .foco-tv {
+    outline: 3px solid #fff !important;
+    outline-offset: 4px !important;
+    box-shadow:
+      0 0 0 6px rgba(255, 255, 255, 0.28),
+      0 0 28px rgba(229, 9, 20, 0.45) !important;
+    transform: scale(1.04);
+    z-index: 2;
+    position: relative;
+  }
+
+  .resume-actions .btn-brand.foco-tv {
+    filter: brightness(1.12);
   }
 
   /* ── Panel de ajustes ── */
@@ -1064,4 +1081,63 @@ input[type='range']::-moz-range-thumb {
 
 .extension-chip {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Tipografía 10-foot UI (TV) */
+body.webos-tv {
+  font-size: 18px;
+}
+
+body.webos-tv .nav-item {
+  font-size: 1rem;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+
+body.webos-tv .search-input {
+  font-size: 1rem;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+
+body.webos-tv .section-title {
+  font-size: 1.35rem;
+}
+
+body.webos-tv .media-card__label {
+  font-size: 0.95rem;
+}
+
+body.webos-tv #titulo-seccion {
+  font-size: 1.75rem;
+}
+
+body.webos-tv .resume-title {
+  font-size: 1.75rem;
+}
+
+body.webos-tv .resume-desc {
+  font-size: 1rem;
+}
+
+body.webos-tv .resume-actions button {
+  font-size: 1.05rem;
+}
+
+body.webos-tv .btn-page {
+  font-size: 1rem;
+  padding: 0.75rem 1.25rem;
+}
+
+.tv-buscador-input.tv-buscador-activo,
+.tv-buscador-input.foco-edicion,
+#tv-app .search-input.tv-foco {
+  outline: 3px solid rgba(56, 189, 248, 0.9) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 22px rgba(56, 189, 248, 0.4) !important;
+  border-color: rgba(56, 189, 248, 0.65) !important;
+}
+
+#tv-app header .tv-foco.btn-brand {
+  filter: brightness(1.1);
 }

@@ -1,6 +1,7 @@
 import { apiFetch } from '../services/apiClient.js'
 import { libraryApi } from '../storage/library.js'
-import { isBackKey, isEnterKey } from '../utils/keys.js'
+import { isBackKey, isEnterKey, isDeleteKey } from '../utils/keys.js'
+import { activarTecladoVirtual } from '../utils/platform.js'
 import { attachStream, destroyStreamHandle, prepareVideoForPlayback } from '../utils/hlsPlayback.js'
 import { bindPosterImage } from '../utils/images.js'
 
@@ -21,6 +22,7 @@ export function initTvModule() {
   const tvTituloCategoria = document.getElementById('tv-titulo-categoria')
   const tvContadorCanales = document.getElementById('tv-contador-canales')
   const tvBuscador = document.getElementById('tv-buscador')
+  const tvBtnBuscar = document.getElementById('tv-btn-buscar')
   const tvBtnVolver = document.getElementById('tv-btn-volver')
 
   const tvPlayerTop = document.getElementById('tv-player-top')
@@ -62,8 +64,10 @@ export function initTvModule() {
   let tvStreamHandle = null
   let tvPlaybackToken = 0
 
-  // Foco de teclado
-  let tvZona = 'CATEGORIAS' // CATEGORIAS | CANALES
+  // Foco de teclado (mismo patrón que Inicio: HEADER → OK → modo edición)
+  let tvZona = 'CATEGORIAS' // HEADER | CATEGORIAS | CANALES
+  let tvModoEdicion = false
+  let tvFocoHeader = 1
   let tvFocoCat = 0
   let tvFocoCanal = 0
   let tvOverlayVista = []
@@ -71,6 +75,7 @@ export function initTvModule() {
 
   const TV_CANAL_LOTE = 48
   let tvRenderLimit = TV_CANAL_LOTE
+  const TV_FOCO = ['ring-2', 'ring-sky-400', 'ring-offset-2', 'ring-offset-black', 'scale-[1.03]']
 
   function resetTvRenderLimit() {
     tvRenderLimit = TV_CANAL_LOTE
@@ -129,6 +134,7 @@ export function initTvModule() {
     }
     renderCategoriasTv()
     seleccionarCategoriaTv('todos')
+    tvModoEdicion = false
     tvZona = 'CATEGORIAS'
     tvFocoCat = 0
     pintarFocoTv()
@@ -147,7 +153,7 @@ export function initTvModule() {
     tvDatos.categorias.forEach((cat) => {
       const btn = document.createElement('button')
       btn.className =
-        'tv-cat text-left w-full text-gray-300 hover:text-white hover:bg-white/5 px-3 py-2.5 rounded-lg transition font-medium flex items-center justify-between gap-2'
+        'tv-cat foco-item text-left w-full text-gray-300 hover:text-white hover:bg-white/5 px-3 py-3 rounded-lg transition font-medium text-base flex items-center justify-between gap-2'
       btn.dataset.cat = cat.id
       const count =
         cat.id === 'favoritos'
@@ -196,28 +202,83 @@ export function initTvModule() {
 
   // ---------- CANALES (grid) ----------
   function renderCanalesTv(resetLimit = true) {
-    if (resetLimit) resetTvRenderLimit()
     const q = tvBuscador.value.trim().toLowerCase()
-    tvCanalesVista = q ? tvBaseLista.filter((c) => c.titulo.toLowerCase().includes(q)) : tvBaseLista
+    if (resetLimit && !q) resetTvRenderLimit()
+
+    if (q && tvDatos?.canales) {
+      tvCanalesVista = tvDatos.canales.filter((c) => c.titulo.toLowerCase().includes(q))
+      tvTituloCategoria.textContent = `🔍 Canales: "${tvBuscador.value.trim()}"`
+    } else {
+      tvCanalesVista = tvBaseLista
+      tvTituloCategoria.textContent = tituloCategoriaActual()
+    }
+
     tvContadorCanales.textContent = `${tvCanalesVista.length} canales`
     tvGridCanales.innerHTML = ''
 
     if (tvCanalesVista.length === 0) {
       tvGridCanales.innerHTML =
-        '<p class="text-gray-500 col-span-full text-center py-10">No hay canales aquí.</p>'
+        '<p class="text-gray-500 col-span-full text-center py-10 text-base">No hay canales aquí.</p>'
       return
     }
 
-    const slice = tvCanalesVista.slice(0, tvRenderLimit)
+    const limite = q ? tvCanalesVista.length : tvRenderLimit
+    const slice = tvCanalesVista.slice(0, limite)
     slice.forEach((c, i) => {
       tvGridCanales.appendChild(crearTarjetaCanal(c, i))
     })
-    if (tvCanalesVista.length > tvRenderLimit) {
+    if (!q && tvCanalesVista.length > tvRenderLimit) {
       const hint = document.createElement('p')
-      hint.className = 'text-gray-500 col-span-full text-center py-3 text-xs'
+      hint.className = 'text-gray-500 col-span-full text-center py-3 text-sm'
       hint.textContent = `Mostrando ${tvRenderLimit} de ${tvCanalesVista.length} — sigue bajando para cargar más`
       tvGridCanales.appendChild(hint)
     }
+  }
+
+  function tvHeaderItems() {
+    return [tvBtnVolver, tvBuscador, tvBtnBuscar].filter(Boolean)
+  }
+
+  function tituloCategoriaActual() {
+    const cat = tvDatos?.categorias?.find((c) => c.id === tvCategoriaActual)
+    return cat ? cat.nombre : 'Canales'
+  }
+
+  function aplicarBusquedaTv() {
+    tvModoEdicion = false
+    tvBuscador.blur()
+    tvBuscador.classList.remove('tv-buscador-activo', 'foco-edicion')
+    renderCanalesTv(true)
+    tvZona = 'CANALES'
+    tvFocoCanal = 0
+    pintarFocoTv()
+  }
+
+  function entrarEdicionTvBuscador() {
+    tvModoEdicion = true
+    tvZona = 'HEADER'
+    tvFocoHeader = Math.max(0, tvHeaderItems().indexOf(tvBuscador))
+    pintarFocoTv()
+    activarTecladoVirtual(tvBuscador)
+  }
+
+  function salirEdicionTvBuscador(volverACanales) {
+    tvModoEdicion = false
+    tvBuscador.blur()
+    tvBuscador.classList.remove('tv-buscador-activo', 'foco-edicion')
+    if (volverACanales) {
+      aplicarBusquedaTv()
+    } else {
+      tvZona = 'HEADER'
+      pintarFocoTv()
+    }
+  }
+
+  function irATvHeader(idx) {
+    if (tvModoEdicion) salirEdicionTvBuscador(false)
+    tvZona = 'HEADER'
+    tvFocoHeader = idx
+    pintarFocoTv()
   }
 
   function crearTarjetaCanal(c, i) {
@@ -232,7 +293,7 @@ export function initTvModule() {
   </div>
 
   <div class="flex flex-col flex-1 w-full">
-    <p class="tv-nombre text-sm font-semibold text-center w-full leading-snug break-words line-clamp-3">
+    <p class="tv-nombre text-base font-semibold text-center w-full leading-snug break-words line-clamp-3">
       ${c.titulo || 'Canal'}
     </p>
 
@@ -265,10 +326,31 @@ export function initTvModule() {
     return card
   }
 
-  tvBuscador.addEventListener('input', () => {
-    renderCanalesTv()
-    tvFocoCanal = 0
-  })
+  let tvFilterTimer = null
+
+  function filtrarCanalesEnVivo() {
+    if (!tvModoEdicion) return
+    clearTimeout(tvFilterTimer)
+    tvFilterTimer = setTimeout(() => renderCanalesTv(false), 220)
+  }
+
+  if (tvBuscador) {
+    tvBuscador.addEventListener('input', filtrarCanalesEnVivo)
+    tvBuscador.addEventListener('keydown', (e) => {
+      e.stopPropagation()
+      if (isDeleteKey(e) || (e.key && e.key.length === 1)) {
+        return
+      }
+      if (isEnterKey(e)) {
+        e.preventDefault()
+        aplicarBusquedaTv()
+      }
+    })
+  }
+
+  if (tvBtnBuscar) {
+    tvBtnBuscar.addEventListener('click', () => aplicarBusquedaTv())
+  }
 
   async function toggleFavTv(c) {
     bibliotecaLocal.favoritos = await libraryApi.toggleFavorite(canalAObjetoFav(c))
@@ -485,16 +567,20 @@ export function initTvModule() {
   })
 
   // ---------- FOCO VISUAL (teclado / control USB) ----------
-  const TV_FOCO = ['ring-2', 'ring-sky-400', 'ring-offset-2', 'ring-offset-black', 'scale-[1.03]']
 
   function limpiarFocoTv() {
     document.querySelectorAll('.tv-foco').forEach((el) => el.classList.remove('tv-foco', ...TV_FOCO))
+    if (tvBuscador) tvBuscador.classList.remove('foco-edicion', 'tv-buscador-activo')
   }
 
   function pintarFocoTv() {
     limpiarFocoTv()
     let el = null
-    if (tvZona === 'CATEGORIAS') {
+    if (tvZona === 'HEADER') {
+      const items = tvHeaderItems()
+      tvFocoHeader = Math.max(0, Math.min(tvFocoHeader, items.length - 1))
+      el = items[tvFocoHeader]
+    } else if (tvZona === 'CATEGORIAS') {
       const els = tvListaCategorias.querySelectorAll('.tv-cat')
       tvFocoCat = Math.max(0, Math.min(tvFocoCat, els.length - 1))
       el = els[tvFocoCat]
@@ -505,6 +591,7 @@ export function initTvModule() {
     }
     if (el) {
       el.classList.add('tv-foco', ...TV_FOCO)
+      if (el === tvBuscador && tvModoEdicion) el.classList.add('foco-edicion', 'tv-buscador-activo')
       el.scrollIntoView({ behavior: 'auto', block: 'nearest' })
     }
   }
@@ -588,21 +675,47 @@ export function initTvModule() {
         return
       }
 
-      // ===== NAVEGADOR IPTV (categorías / canales) =====
+      // ===== NAVEGADOR IPTV (header / categorías / canales) =====
       e.stopPropagation()
-      const enBuscador = document.activeElement === tvBuscador
 
-      if (enBuscador) {
-        if (e.key === 'ArrowDown' || isEnterKey(e)) {
-          tvBuscador.blur()
-          tvZona = 'CANALES'
-          tvFocoCanal = 0
-          pintarFocoTv()
-          e.preventDefault()
-        } else if (isBackKey(e)) {
-          tvBuscador.blur()
-          e.preventDefault()
+      // Modo edición del buscador (igual que Inicio: OK activa, escribe, Enter busca)
+      if (tvModoEdicion) {
+        if (isDeleteKey(e)) {
+          return
         }
+        if (isBackKey(e)) {
+          salirEdicionTvBuscador(false)
+          e.preventDefault()
+          return
+        }
+        if (e.key === 'ArrowDown') {
+          aplicarBusquedaTv()
+          e.preventDefault()
+          return
+        }
+        if (e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          return
+        }
+        return
+      }
+
+      if (tvZona === 'HEADER') {
+        const items = tvHeaderItems()
+        if (e.key === 'ArrowRight') tvFocoHeader = Math.min(tvFocoHeader + 1, items.length - 1)
+        else if (e.key === 'ArrowLeft') tvFocoHeader = Math.max(tvFocoHeader - 1, 0)
+        else if (e.key === 'ArrowDown') {
+          tvZona = 'CATEGORIAS'
+          tvFocoCat = 0
+        } else if (isEnterKey(e)) {
+          const el = items[tvFocoHeader]
+          if (el === tvBuscador) entrarEdicionTvBuscador()
+          else el?.click()
+          e.preventDefault()
+          if (el !== tvBuscador) pintarFocoTv()
+          return
+        }
+        pintarFocoTv()
+        e.preventDefault()
         return
       }
 
@@ -627,8 +740,14 @@ export function initTvModule() {
       if (tvZona === 'CATEGORIAS') {
         const els = tvListaCategorias.querySelectorAll('.tv-cat')
         if (e.key === 'ArrowDown') tvFocoCat = Math.min(tvFocoCat + 1, els.length - 1)
-        else if (e.key === 'ArrowUp') tvFocoCat = Math.max(tvFocoCat - 1, 0)
-        else if (e.key === 'ArrowRight' || isEnterKey(e)) {
+        else if (e.key === 'ArrowUp') {
+          if (tvFocoCat === 0) {
+            irATvHeader(1)
+            e.preventDefault()
+            return
+          }
+          tvFocoCat = Math.max(tvFocoCat - 1, 0)
+        } else if (e.key === 'ArrowRight' || isEnterKey(e)) {
           if (els[tvFocoCat]) els[tvFocoCat].click()
           if (e.key === 'ArrowRight') {
             tvZona = 'CANALES'
@@ -637,9 +756,11 @@ export function initTvModule() {
         }
         pintarFocoTv()
         e.preventDefault()
-      } else {
+      } else if (tvZona === 'CANALES') {
         const cols = columnasGridCanales()
-        const total = Math.min(tvCanalesVista.length, tvRenderLimit)
+        const q = tvBuscador.value.trim()
+        const limite = q ? tvCanalesVista.length : tvRenderLimit
+        const total = Math.min(tvCanalesVista.length, limite)
         if (e.key === 'ArrowRight') tvFocoCanal = Math.min(tvFocoCanal + 1, total - 1)
         else if (e.key === 'ArrowLeft') {
           if (tvFocoCanal % cols === 0) tvZona = 'CATEGORIAS'
@@ -649,7 +770,7 @@ export function initTvModule() {
           expandTvRenderIfNeeded(tvFocoCanal)
         } else if (e.key === 'ArrowUp') {
           if (tvFocoCanal < cols) {
-            tvBuscador.focus()
+            irATvHeader(1)
             e.preventDefault()
             return
           }
