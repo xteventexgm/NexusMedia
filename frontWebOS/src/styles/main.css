@@ -784,8 +784,8 @@ input[type='range']::-moz-range-thumb {
 .player-message {
   position: absolute;
   left: 50%;
-  bottom: 5.5rem;
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 40;
   max-width: min(36rem, 92vw);
   pointer-events: none;
