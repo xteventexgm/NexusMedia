@@ -1,6 +1,6 @@
 const ProviderBase = require('./ProviderBase');
 const { gqlRequest } = require('../utils/doramasApi');
-const { extraerVideoDirecto } = require('../utils/extractor');
+const { resolveEmbedToStream, sortServersHlsFirst } = require('../utils/hlsResolver');
 
 class DoramasFlix extends ProviderBase {
     constructor() {
@@ -315,8 +315,9 @@ class DoramasFlix extends ProviderBase {
                   .replace("https://uqload.to", "https://uqload.co");
     }
 
-    async extraerVideoPuro(embedUrl) {
-        return extraerVideoDirecto(embedUrl);
+    async extraerVideoPuro(embedUrl, referer) {
+        const hls = await resolveEmbedToStream(embedUrl, { referer: referer || embedUrl });
+        return hls ? hls.url : null;
     }
 
     async getEnlaces(urlEpisodio) {
@@ -351,13 +352,13 @@ class DoramasFlix extends ProviderBase {
             const urlCorregida = this.fixHostsLinks(item.link);
             const idioma = this.getLangById(item.lang || item.server);
 
-            if (/vidhide|streamwish|filemoon|streamtape|strtape|stape/i.test(urlCorregida)) {
-                const videoReal = await this.extraerVideoPuro(urlCorregida);
-                if (videoReal) {
-                    servidores.unshift({
-                        nombre: `Auto-Play HLS [${idioma}]`,
-                        url: videoReal
-                    });
+            if (/vidhide|streamwish|filemoon|streamtape|strtape|stape|minochinos/i.test(urlCorregida)) {
+                const hls = await resolveEmbedToStream(urlCorregida, {
+                    label: `Auto-Play HLS [${idioma}]`,
+                    referer: urlCorregida
+                });
+                if (hls) {
+                    servidores.push(hls);
                 } else {
                     servidores.push({
                         nombre: `Iframe (${new URL(urlCorregida).hostname.split('.')[0]}) [${idioma}]`,
@@ -371,7 +372,7 @@ class DoramasFlix extends ProviderBase {
                 });
             }
         }
-        return servidores;
+        return sortServersHlsFirst(servidores);
     }
 }
 

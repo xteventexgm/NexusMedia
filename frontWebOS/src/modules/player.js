@@ -1,6 +1,7 @@
 import { apiFetch } from '../services/apiClient.js'
 import { libraryApi } from '../storage/library.js'
 import { attachStream, destroyStreamHandle, prepareVideoForPlayback } from '../utils/hlsPlayback.js'
+import { isStreamPlaybackUrl, isHlsServerName } from '../utils/streamDetect.js'
 import {
   playViaIframe,
   stopIframe,
@@ -199,14 +200,8 @@ export function initPlayerModule(getCtx) {
     customControls.classList.add('hidden')
     mensajeReproductor.classList.add('hidden')
 
-    const urlLimpia = url.toLowerCase()
     const esTv = ctx.extensionActual === 'tv'
-    const esVideoNativo =
-      esTv ||
-      urlLimpia.includes('m3u8') ||
-      urlLimpia.includes('.mp4') ||
-      urlLimpia.includes('.ts') ||
-      urlLimpia.includes('get_video')
+    const esVideoNativo = esTv || isStreamPlaybackUrl(url)
 
     if (esVideoNativo) {
       videoPlayer.classList.remove('hidden')
@@ -297,13 +292,9 @@ export function initPlayerModule(getCtx) {
         const urlB = (b.url || '').toLowerCase()
 
         const hlsA =
-          nameA.includes('auto-play hls') || urlA.includes('.m3u8') || urlA.includes('/stream/proxy')
-            ? 1
-            : 0
+          isHlsServerName(nameA) || isStreamPlaybackUrl(a.url) ? 1 : 0
         const hlsB =
-          nameB.includes('auto-play hls') || urlB.includes('.m3u8') || urlB.includes('/stream/proxy')
-            ? 1
-            : 0
+          isHlsServerName(nameB) || isStreamPlaybackUrl(b.url) ? 1 : 0
         if (hlsB !== hlsA) return hlsB - hlsA
 
         const isLatamA =

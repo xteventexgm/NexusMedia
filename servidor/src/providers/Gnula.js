@@ -2,7 +2,7 @@ const ProviderBase = require("./ProviderBase");
 const axios = require("axios");
 const cheerio = require("cheerio");
 const config = require("../config/env");
-const { extraerVideoDirecto } = require("../utils/extractor");
+const { resolveEmbedToStream, sortServersHlsFirst } = require("../utils/hlsResolver");
 
 class Gnula extends ProviderBase {
     constructor() {
@@ -245,25 +245,16 @@ class Gnula extends ProviderBase {
 
             const servidores = await Promise.all(
                 crudos.map(async (entry) => {
-                    try {
-                        const videoReal = await extraerVideoDirecto(entry.url);
-                        if (videoReal) {
-                            return { nombre: `Auto-Play HLS [${entry.nombre}]`, url: videoReal };
-                        }
-                    } catch (_) {
-                        /* iframe fallback */
-                    }
+                    const hls = await resolveEmbedToStream(entry.url, {
+                        label: `Auto-Play HLS [${entry.nombre}]`,
+                        referer: entry.url
+                    });
+                    if (hls) return hls;
                     return entry;
                 })
             );
 
-            servidores.sort((a, b) => {
-                const hlsA = /Auto-Play HLS/i.test(a.nombre) ? 1 : 0;
-                const hlsB = /Auto-Play HLS/i.test(b.nombre) ? 1 : 0;
-                return hlsB - hlsA;
-            });
-
-            return servidores.filter((s) => s && s.url);
+            return sortServersHlsFirst(servidores.filter((s) => s && s.url));
         } catch (error) {
             console.error("[GnulaHD] Error obteniendo videos:", error.message);
             return [];

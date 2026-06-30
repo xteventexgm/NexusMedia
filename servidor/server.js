@@ -10,6 +10,7 @@ const {
   rewriteM3u8Playlist,
   proxyStreamRequest
 } = require('./src/utils/streamProxy');
+const { sortServersHlsFirst } = require('./src/utils/hlsResolver');
 
 process.on('uncaughtException', (err) => {
     console.error('[ERROR] uncaughtException:', err?.stack || err);
@@ -392,20 +393,23 @@ app.get('/api/providers/:id/watch', checkProvider, async (req, res) => {
         if (!req.query.url) return res.status(400).json({ error: "Falta el parámetro 'url'" });
         const raw = await req.provider.getEnlaces(req.query.url);
         const apiBase = config.nexusPublicUrl || `${req.protocol}://${req.get('host')}`;
-        const data = (raw || [])
+        const normalized = (raw || [])
             .map((s) => ({
                 nombre: s.nombre || s.server || s.name || 'Servidor',
                 url: s.url || s.link || '',
-                referer: s.referer || ''
+                referer: s.referer || '',
+                hls: s.hls
             }))
-            .filter((s) => s.url)
-            .map((s) => {
-                if (!isStreamUrl(s.url)) return { nombre: s.nombre, url: s.url };
-                return {
-                    nombre: s.nombre,
-                    url: wrapStreamUrl(s.url, apiBase, s.referer)
-                };
-            });
+            .filter((s) => s.url);
+
+        const sorted = sortServersHlsFirst(normalized);
+        const data = sorted.map((s) => {
+            if (!isStreamUrl(s.url)) return { nombre: s.nombre, url: s.url };
+            return {
+                nombre: s.nombre,
+                url: wrapStreamUrl(s.url, apiBase, s.referer || s.url)
+            };
+        });
         if (!data.length) {
             console.warn(
                 `[/watch] ${req.params.id} sin servidores:`,

@@ -29,7 +29,9 @@ export function supportsNativeHls(video) {
 }
 
 function isM3u8Url(url) {
-  return /\.m3u8(\?|$)/i.test(url || '')
+  if (/\.m3u8(\?|$)/i.test(url || '')) return true
+  if (/\/stream\/proxy/i.test(url || '')) return true
+  return false
 }
 
 /** Opciones conservadoras para TVs con poca RAM. */

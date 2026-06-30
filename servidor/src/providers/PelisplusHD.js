@@ -3,9 +3,13 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const crypto = require("crypto");
 const config = require("../config/env");
-const { extraerVideoDirecto } = require("../utils/extractor");
-const { UA } = require("../utils/userAgent");
 const { fetchHtml } = require("../utils/httpRelay");
+const { UA } = require("../utils/userAgent");
+const {
+  resolveEmbedToStream,
+  iframeFallback,
+  sortServersHlsFirst,
+} = require("../utils/hlsResolver");
 
 class PelisplusHD extends ProviderBase {
   constructor() {
@@ -233,10 +237,6 @@ class PelisplusHD extends ProviderBase {
     return null;
   }
 
-  esUrlHls(url) {
-    return /\.m3u8(\?|$)/i.test(url) || /\/hls/i.test(url);
-  }
-
   httpOpts(referer) {
     return {
       timeout: config.httpTimeoutMs,
@@ -295,38 +295,19 @@ class PelisplusHD extends ProviderBase {
           if (!linkLimpio) return null;
 
           const urlReal = this.fixHostsLinks(linkLimpio);
-          if (this.esUrlHls(urlReal)) {
-            return {
-              nombre: `Auto-Play HLS [${idioma}]`,
-              url: urlReal,
-              hls: true,
-              referer: urlReal,
-            };
-          }
-
           console.log("[embed69] URL:", urlReal);
-          const directo = await extraerVideoDirecto(urlReal, {
-            referer: embedUrl,
-            timeout: config.httpTimeoutMs,
+          const hls = await resolveEmbedToStream(urlReal, {
+            label: `Auto-Play HLS [${idioma}]`,
+            referer: urlReal,
+            fetchReferer: embedUrl,
           });
-          if (directo) {
-            return {
-              nombre: `Auto-Play HLS [${idioma}]`,
-              url: directo,
-              hls: true,
-              referer: urlReal,
-            };
-          }
+          if (hls) return hls;
 
           let host = embed.servername || "Externo";
           try {
             host = new URL(urlReal).hostname.split(".")[0];
           } catch (_) {}
-          return {
-            nombre: `Servidor: ${host} [${idioma}]`,
-            url: urlReal,
-            hls: false,
-          };
+          return iframeFallback(urlReal, `Servidor: ${host} [${idioma}]`);
         });
       }
     }
@@ -336,8 +317,14 @@ class PelisplusHD extends ProviderBase {
       if (r.status === "fulfilled" && r.value) servidores.push(r.value);
     }
 
-    servidores.sort((a, b) => (b.hls ? 1 : 0) - (a.hls ? 1 : 0));
-    return servidores.map(({ nombre, url, referer }) => ({ nombre, url, referer }));
+    return sortServersHlsFirst(
+      servidores.map(({ nombre, url, referer, hls }) => ({
+        nombre,
+        url,
+        referer,
+        hls,
+      })),
+    );
   }
 
   async getEnlaces(urlEpisodio) {
@@ -392,21 +379,14 @@ class PelisplusHD extends ProviderBase {
             host = new URL(url).hostname.split(".")[0];
           } catch (_) {}
           console.log("[embed69] URL:", url);
-          const videoReal = await extraerVideoDirecto(url, {
+          const hls = await resolveEmbedToStream(url, {
+            label: `Auto-Play HLS [${host}]`,
             referer: this.baseUrl,
-            timeout: config.httpTimeoutMs,
           });
-          if (videoReal) {
-            servidores.unshift({
-              nombre: `Auto-Play HLS [${host}]`,
-              url: videoReal,
-              referer: url,
-            });
+          if (hls) {
+            servidores.push(hls);
           } else {
-            servidores.push({
-              nombre: `Servidor Externo: ${host}`,
-              url: url,
-            });
+            servidores.push(iframeFallback(url, `Servidor Externo: ${host}`));
           }
         }
       }
@@ -414,7 +394,7 @@ class PelisplusHD extends ProviderBase {
       console.error("[PelisplusHD] getEnlaces:", error.message);
     }
 
-    return servidores;
+    return sortServersHlsFirst(servidores);
   }
 }
 
