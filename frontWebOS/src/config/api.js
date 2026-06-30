@@ -4,7 +4,9 @@
  */
 export function getDefaultApiUrl() {
   var env = import.meta.env.VITE_API_URL
-  var base = env || 'http://localhost:3000/api'
+  var prodFallback = 'https://nexusmedia-1mpl.onrender.com'
+  var devFallback = 'http://localhost:3000'
+  var base = env || (import.meta.env.PROD ? prodFallback : devFallback)
   base = base.trim().replace(/\/$/, '')
   if (!/\/api$/i.test(base)) base = base + '/api'
   return base

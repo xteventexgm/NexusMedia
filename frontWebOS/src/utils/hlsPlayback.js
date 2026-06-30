@@ -30,6 +30,7 @@ export function supportsNativeHls(video) {
 
 function isM3u8Url(url) {
   if (/\.m3u8(\?|$)/i.test(url || '')) return true
+  if (/\/api\/stream\/proxy/i.test(url || '')) return true
   if (/\/stream\/proxy/i.test(url || '')) return true
   return false
 }

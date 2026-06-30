@@ -6,7 +6,8 @@ import { isWebOS } from '../utils/platform.js'
  */
 export function isIframePlaybackEnabled() {
   if (isWebOS()) {
-    return localStorage.getItem('nexus_iframe_playback') === '1'
+    // En TV: iframe activo por defecto para streamwish/voe; desactivar con localStorage '0'
+    return localStorage.getItem('nexus_iframe_playback') !== '0'
   }
   return localStorage.getItem('nexus_iframe_playback') !== '0'
 }

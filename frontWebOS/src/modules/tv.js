@@ -1,6 +1,6 @@
 import { apiFetch } from '../services/apiClient.js'
 import { libraryApi } from '../storage/library.js'
-import { isBackKey } from '../utils/keys.js'
+import { isBackKey, isEnterKey } from '../utils/keys.js'
 import { attachStream, destroyStreamHandle, prepareVideoForPlayback } from '../utils/hlsPlayback.js'
 import { bindPosterImage } from '../utils/images.js'
 
@@ -68,6 +68,24 @@ export function initTvModule() {
   let tvFocoCanal = 0
   let tvOverlayVista = []
   let tvFocoOverlay = 0
+
+  const TV_CANAL_LOTE = 48
+  let tvRenderLimit = TV_CANAL_LOTE
+
+  function resetTvRenderLimit() {
+    tvRenderLimit = TV_CANAL_LOTE
+  }
+
+  function expandTvRenderIfNeeded(focoIdx) {
+    if (focoIdx >= tvRenderLimit - 8 && tvRenderLimit < tvCanalesVista.length) {
+      tvRenderLimit = Math.min(tvRenderLimit + TV_CANAL_LOTE, tvCanalesVista.length)
+      const prevFoco = tvFocoCanal
+      renderCanalesTv(false)
+      tvFocoCanal = prevFoco
+      return true
+    }
+    return false
+  }
 
   const mostrarTv = (el) => {
     el.classList.remove('hidden')
@@ -177,7 +195,8 @@ export function initTvModule() {
   }
 
   // ---------- CANALES (grid) ----------
-  function renderCanalesTv() {
+  function renderCanalesTv(resetLimit = true) {
+    if (resetLimit) resetTvRenderLimit()
     const q = tvBuscador.value.trim().toLowerCase()
     tvCanalesVista = q ? tvBaseLista.filter((c) => c.titulo.toLowerCase().includes(q)) : tvBaseLista
     tvContadorCanales.textContent = `${tvCanalesVista.length} canales`
@@ -189,9 +208,16 @@ export function initTvModule() {
       return
     }
 
-    tvCanalesVista.forEach((c, i) => {
+    const slice = tvCanalesVista.slice(0, tvRenderLimit)
+    slice.forEach((c, i) => {
       tvGridCanales.appendChild(crearTarjetaCanal(c, i))
     })
+    if (tvCanalesVista.length > tvRenderLimit) {
+      const hint = document.createElement('p')
+      hint.className = 'text-gray-500 col-span-full text-center py-3 text-xs'
+      hint.textContent = `Mostrando ${tvRenderLimit} de ${tvCanalesVista.length} — sigue bajando para cargar más`
+      tvGridCanales.appendChild(hint)
+    }
   }
 
   function crearTarjetaCanal(c, i) {
@@ -479,7 +505,7 @@ export function initTvModule() {
     }
     if (el) {
       el.classList.add('tv-foco', ...TV_FOCO)
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      el.scrollIntoView({ behavior: 'auto', block: 'nearest' })
     }
   }
 
@@ -490,7 +516,7 @@ export function initTvModule() {
     const el = els[tvFocoOverlay]
     if (el) {
       el.classList.add('bg-sky-500/40')
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      el.scrollIntoView({ behavior: 'auto', block: 'nearest' })
     }
   }
 
@@ -529,7 +555,7 @@ export function initTvModule() {
               pintarFocoOverlay()
             }
             e.preventDefault()
-          } else if (e.key === 'Enter') {
+          } else if (isEnterKey(e)) {
             if (enBuscador) {
               tvOverlayBuscador.blur()
               pintarFocoOverlay()
@@ -550,7 +576,7 @@ export function initTvModule() {
         } else if (e.key === 'ArrowDown' || e.key === 'ChannelDown' || e.key === 'PageDown') {
           zapTv(1)
           e.preventDefault()
-        } else if (e.key === 'Enter' || e.key === ' ' || e.key === 'OK') {
+        } else if (isEnterKey(e) || e.key === ' ' || e.key === 'OK') {
           toggleOverlayCanales()
           e.preventDefault()
         } else if (e.key.toLowerCase() === 'f') {
@@ -567,7 +593,7 @@ export function initTvModule() {
       const enBuscador = document.activeElement === tvBuscador
 
       if (enBuscador) {
-        if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        if (e.key === 'ArrowDown' || isEnterKey(e)) {
           tvBuscador.blur()
           tvZona = 'CANALES'
           tvFocoCanal = 0
@@ -602,7 +628,7 @@ export function initTvModule() {
         const els = tvListaCategorias.querySelectorAll('.tv-cat')
         if (e.key === 'ArrowDown') tvFocoCat = Math.min(tvFocoCat + 1, els.length - 1)
         else if (e.key === 'ArrowUp') tvFocoCat = Math.max(tvFocoCat - 1, 0)
-        else if (e.key === 'ArrowRight' || e.key === 'Enter') {
+        else if (e.key === 'ArrowRight' || isEnterKey(e)) {
           if (els[tvFocoCat]) els[tvFocoCat].click()
           if (e.key === 'ArrowRight') {
             tvZona = 'CANALES'
@@ -613,20 +639,22 @@ export function initTvModule() {
         e.preventDefault()
       } else {
         const cols = columnasGridCanales()
-        const total = tvCanalesVista.length
+        const total = Math.min(tvCanalesVista.length, tvRenderLimit)
         if (e.key === 'ArrowRight') tvFocoCanal = Math.min(tvFocoCanal + 1, total - 1)
         else if (e.key === 'ArrowLeft') {
           if (tvFocoCanal % cols === 0) tvZona = 'CATEGORIAS'
           else tvFocoCanal--
-        } else if (e.key === 'ArrowDown') tvFocoCanal = Math.min(tvFocoCanal + cols, total - 1)
-        else if (e.key === 'ArrowUp') {
+        } else if (e.key === 'ArrowDown') {
+          tvFocoCanal = Math.min(tvFocoCanal + cols, total - 1)
+          expandTvRenderIfNeeded(tvFocoCanal)
+        } else if (e.key === 'ArrowUp') {
           if (tvFocoCanal < cols) {
             tvBuscador.focus()
             e.preventDefault()
             return
           }
           tvFocoCanal -= cols
-        } else if (e.key === 'Enter') {
+        } else if (isEnterKey(e)) {
           reproducirCanalPorIndice(tvFocoCanal)
         }
         pintarFocoTv()

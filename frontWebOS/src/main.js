@@ -4,7 +4,7 @@ import './styles/fonts.css'
 import './styles/main.css'
 import { apiFetch, mostrarErrorApi, mostrarToastExito } from './services/apiClient.js'
 import { libraryApi } from './storage/library.js'
-import { isBackKey } from './utils/keys.js'
+import { isBackKey, isEnterKey, isSelectKey } from './utils/keys.js'
 import { isWebOS } from './utils/platform.js'
 import { bindPosterImage } from './utils/images.js'
 import { formatTime } from './utils/formatTime.js'
@@ -33,6 +33,7 @@ let bibliotecaLocal = { favoritos: [], progreso: {}, historial: [] }
 let paginaActual = 1
 let busquedaActual = ''
 let filtrosActuales = {}
+let catalogFetchGen = 0
 
 let episodiosDelAnimeActual = []
 let indiceEpisodioActual = -1
@@ -107,6 +108,15 @@ let extensionesLista = []
 // ==========================================
 function metaDe(providerId) {
   return providersMeta[providerId] || { nombre: providerId, icono: '📺', color: '#e50914' }
+}
+
+/** ID de extensión activa para catálogo paginado (excluye inicio, global, fav, etc.). */
+function providerCatalogoActivo() {
+  const id = extensionActual
+  if (!id || typeof id !== 'string') return null
+  if (id === 'inicio' || id === 'global' || id === 'favoritos' || id === 'historial') return null
+  if (id.startsWith('cat:')) return null
+  return id
 }
 
 function esContenidoPelicula(episodios, detalles) {
@@ -234,7 +244,7 @@ function crearFila(fila) {
     <h3 class="section-title">${icono}<span>${fila.titulo}</span></h3>
     <div class="carousel-row relative group/row">
       <button type="button" class="fila-prev absolute left-0 top-0 bottom-8 z-30 w-10 md:w-14 bg-gradient-to-r from-[#08080a] to-transparent text-white text-3xl opacity-0 group-hover/row:opacity-100 transition flex items-center justify-center hover:text-white">‹</button>
-      <div class="fila-scroll flex gap-2 md:gap-3 overflow-x-auto scroll-smooth snap-x"></div>
+      <div class="fila-scroll flex gap-3 md:gap-4 overflow-x-auto scroll-smooth snap-x"></div>
       <button type="button" class="fila-next absolute right-0 top-0 bottom-8 z-30 w-10 md:w-14 bg-gradient-to-l from-[#08080a] to-transparent text-white text-3xl opacity-0 group-hover/row:opacity-100 transition flex items-center justify-center hover:text-white">›</button>
     </div>`
 
@@ -629,23 +639,31 @@ function aplicarFiltrosYBuscar() {
 }
 
 async function obtenerDatosPaginados() {
+  const fetchId = ++catalogFetchGen
+  const extSnapshot = extensionActual
+  const pageSnapshot = paginaActual
+  const busqSnapshot = busquedaActual
   mostrarSkeletons()
   contenedorPaginacion.classList.add('hidden')
   try {
     let apiPath = ''
-    if (extensionActual === 'inicio') {
-      apiPath = `/catalog?page=${paginaActual}`
-    } else if (typeof extensionActual === 'string' && extensionActual.startsWith('cat:')) {
-      const genero = extensionActual.slice(4)
-      apiPath = `/category?genero=${encodeURIComponent(genero)}&page=${paginaActual}`
-    } else if (busquedaActual) {
-      apiPath = `/providers/${extensionActual}/search?q=${encodeURIComponent(busquedaActual)}&page=${paginaActual}`
+    if (extSnapshot === 'inicio') {
+      apiPath = `/catalog?page=${pageSnapshot}`
+    } else if (typeof extSnapshot === 'string' && extSnapshot.startsWith('cat:')) {
+      const genero = extSnapshot.slice(4)
+      apiPath = `/category?genero=${encodeURIComponent(genero)}&page=${pageSnapshot}`
+    } else if (busqSnapshot) {
+      apiPath = `/providers/${extSnapshot}/search?q=${encodeURIComponent(busqSnapshot)}&page=${pageSnapshot}`
     } else {
       const params = new URLSearchParams(filtrosActuales)
-      params.append('page', paginaActual)
-      apiPath = `/providers/${extensionActual}/catalog?${params.toString()}`
+      params.append('page', pageSnapshot)
+      apiPath = `/providers/${extSnapshot}/catalog?${params.toString()}`
     }
     const resultados = await apiFetch(apiPath)
+    if (fetchId !== catalogFetchGen) return
+    if (extensionActual !== extSnapshot || paginaActual !== pageSnapshot || busquedaActual !== busqSnapshot) {
+      return
+    }
     renderizarTarjetas(resultados)
     textoPagina.textContent = `Página ${paginaActual}`
     btnPaginaAnterior.disabled = paginaActual === 1
@@ -741,9 +759,9 @@ function renderizarTarjetas(items) {
       '<p class="state-box col-span-full text-gray-400">No se encontraron resultados.</p>')
   }
 
+  const forceProv = providerCatalogoActivo()
   items.forEach((item) => {
-    // Usamos el ayudante para crear la tarjeta
-    const card = crearTarjetaHTML(item)
+    const card = crearTarjetaHTML(item, forceProv)
     gridCatalogo.appendChild(card)
   })
 }
@@ -799,23 +817,37 @@ btnBusquedaGlobal.addEventListener('click', () => {
 })
 
 // El Buscador Inteligente
+async function ejecutarBusquedaDesdeInput() {
+  busquedaActual = inputBuscador.value.trim()
+  if (!busquedaActual) return
+
+  contenedorFiltros.classList.add('hidden')
+  contenedorPaginacion.classList.add('hidden')
+
+  if (extensionActual === 'global' || extensionActual === 'inicio') {
+    tituloSeccion.textContent = `🔍 "${busquedaActual}"`
+    tituloSeccion.classList.remove('hidden')
+    await realizarBusquedaGlobal(busquedaActual)
+  } else if (extensionActual) {
+    paginaActual = 1
+    tituloSeccion.textContent = `Buscando: "${busquedaActual}"`
+    await obtenerDatosPaginados()
+  }
+}
+
+inputBuscador.addEventListener('keydown', async (e) => {
+  if (isEnterKey(e)) {
+    e.preventDefault()
+    e.stopPropagation()
+    modoEdicion = false
+    await ejecutarBusquedaDesdeInput()
+  }
+})
+
 inputBuscador.addEventListener('keypress', async (e) => {
-  if (e.key === 'Enter') {
-    busquedaActual = inputBuscador.value.trim()
-    if (!busquedaActual) return
-
-    contenedorFiltros.classList.add('hidden')
-    contenedorPaginacion.classList.add('hidden')
-
-    if (extensionActual === 'global' || extensionActual === 'inicio') {
-      tituloSeccion.textContent = `🔍 "${busquedaActual}"`
-      tituloSeccion.classList.remove('hidden')
-      await realizarBusquedaGlobal(busquedaActual)
-    } else if (extensionActual) {
-      paginaActual = 1
-      tituloSeccion.textContent = `Buscando: "${busquedaActual}"`
-      await obtenerDatosPaginados()
-    }
+  if (isEnterKey(e)) {
+    e.preventDefault()
+    await ejecutarBusquedaDesdeInput()
   }
 })
 
@@ -1509,11 +1541,23 @@ function enfocarElemento(elemento) {
 
   const enNav = !!elemento.closest('#top-nav')
   const enCarrusel = !!elemento.closest('.media-card, .carousel-row')
-  elemento.scrollIntoView({
-    behavior: 'smooth',
-    block: enCarrusel ? 'nearest' : enNav ? 'nearest' : 'center',
-    inline: 'center'
-  })
+  const modalScroll = elemento.closest('#modal-detalles')
+  if (modalScroll) {
+    const rect = elemento.getBoundingClientRect()
+    const modalRect = modalScroll.getBoundingClientRect()
+    const margen = 48
+    if (rect.bottom > modalRect.bottom - margen) {
+      modalScroll.scrollTop += rect.bottom - modalRect.bottom + margen
+    } else if (rect.top < modalRect.top + margen) {
+      modalScroll.scrollTop -= modalRect.top - rect.top + margen
+    }
+  } else {
+    elemento.scrollIntoView({
+      behavior: 'smooth',
+      block: enCarrusel ? 'nearest' : enNav ? 'nearest' : 'center',
+      inline: 'center'
+    })
+  }
   const strip = elemento.closest('.fila-scroll')
   if (strip) {
     const card = elemento.classList.contains('media-card') ? elemento : elemento.closest('.media-card')
@@ -1571,7 +1615,7 @@ window.addEventListener('keydown', (e) => {
         }
         if (e.key === 'ArrowDown') idxEpOverlay = Math.min(idxEpOverlay + 1, navegables.length - 1)
         else if (e.key === 'ArrowUp') idxEpOverlay = Math.max(idxEpOverlay - 1, 0)
-        else if (e.key === 'Enter') {
+        else if (isEnterKey(e)) {
           navegables[idxEpOverlay]?.click()
           e.preventDefault()
           return
@@ -1637,7 +1681,7 @@ window.addEventListener('keydown', (e) => {
         } else if (e.key === 'ArrowRight') {
           const fila = grid[playerFila]
           playerCol = Math.min(playerCol + 1, fila.length - 1)
-        } else if (e.key === 'Enter') {
+        } else if (isEnterKey(e)) {
           const celda = grid[playerFila]?.[playerCol]
           if (celda?.tagName === 'INPUT' && celda.type === 'range') return
           if (celda?.id === 'btn-ep-lista' && overlayEpisodiosEstaVisible()) {
@@ -1669,7 +1713,7 @@ window.addEventListener('keydown', (e) => {
       }
     }
 
-    if (!esIframe && (e.key === 'Enter' || e.key === ' ')) {
+    if (!esIframe && isSelectKey(e)) {
       const grid = gridReproductor()
       const celda = uiReproductor ? grid[playerFila]?.[playerCol] : null
       if (celda) celda.click()
@@ -1695,7 +1739,7 @@ window.addEventListener('keydown', (e) => {
       idxReanudar = Math.min(idxReanudar + 1, ops.length - 1)
     } else if (e.key === 'ArrowUp') {
       idxReanudar = Math.max(idxReanudar - 1, 0)
-    } else if (e.key === 'Enter') {
+    } else if (isEnterKey(e)) {
       if (ops[idxReanudar]) ops[idxReanudar].click()
       e.preventDefault()
       return
@@ -1706,7 +1750,7 @@ window.addEventListener('keydown', (e) => {
   }
 
   // --- A PARTIR DE AQUÍ SIGUE LA NAVEGACIÓN DE LA INTERFAZ NORMAL ---
-  if (e.target && e.target.tagName === 'INPUT' && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Escape', 'Enter', 'GoBack', 'OK'].includes(e.key) && !isBackKey(e)) {
+  if (e.target && e.target.tagName === 'INPUT' && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Escape', 'GoBack', 'OK'].includes(e.key) && !isBackKey(e) && !isEnterKey(e)) {
     return // Permitir escribir de forma nativa si un input tiene el foco (ej: mouse click)
   }
 
@@ -1744,9 +1788,20 @@ window.addEventListener('keydown', (e) => {
   // --- MODO EDICIÓN (escribir en el buscador) ---
   if (modoEdicion) {
     const elEd = (elementos[zonaActual] || [])[indicesFoco[zonaActual]]
-    if (isBackKey(e) || e.key === 'Enter') {
+    if (isBackKey(e)) {
       modoEdicion = false
       enfocarElemento(elEd)
+      e.preventDefault()
+      return
+    }
+    if (isEnterKey(e)) {
+      modoEdicion = false
+      if (elEd && elEd.id === 'input-buscador') {
+        ejecutarBusquedaDesdeInput()
+      } else {
+        enfocarElemento(elEd)
+      }
+      e.preventDefault()
       return
     }
     if (elEd && elEd.tagName === 'INPUT') {
@@ -1787,7 +1842,7 @@ window.addEventListener('keydown', (e) => {
       }
       homeFila--
       homeCol = Math.min(homeCol, filas[homeFila].length - 1)
-    } else if (e.key === 'Enter') {
+    } else if (isEnterKey(e)) {
       const el = filas[homeFila][homeCol]
       if (el) el.click()
       e.preventDefault()
@@ -1811,7 +1866,7 @@ window.addEventListener('keydown', (e) => {
 
   // --- ZONA: BARRA SUPERIOR (nav: inicio, fav, buscador, etc.) ---
   if (zonaActual === 'MENU') {
-    if (e.key === 'Enter') {
+    if (isEnterKey(e)) {
       if (elActual.tagName === 'INPUT') {
         modoEdicion = true
         enfocarElemento(elActual)
@@ -1845,7 +1900,7 @@ window.addEventListener('keydown', (e) => {
 
   // --- ZONA: FILTROS (selects bajo la barra) ---
   else if (zonaActual === 'TOP') {
-    if (e.key === 'Enter') {
+    if (isEnterKey(e)) {
       if (elActual.tagName === 'SELECT') {
         try {
           elActual.showPicker()
@@ -1903,7 +1958,7 @@ window.addEventListener('keydown', (e) => {
       } else {
         idx += columnasGrid
       }
-    } else if (e.key === 'Enter') els[idx].click()
+    } else if (isEnterKey(e)) els[idx].click()
   }
 
   // --- ZONA: PAGINACIÓN ---
@@ -1915,7 +1970,7 @@ window.addEventListener('keydown', (e) => {
     } else if (e.key === 'ArrowUp') {
       zonaActual = 'GRID'
       idx = elementos.GRID.length - 1
-    } else if (e.key === 'Enter') els[idx].click()
+    } else if (isEnterKey(e)) els[idx].click()
   }
 
   // --- ZONA: MODAL DE DETALLES ---
@@ -1942,7 +1997,7 @@ window.addEventListener('keydown', (e) => {
         modalFila--
         modalCol = Math.min(modalCol, grid[modalFila].length - 1)
       }
-    } else if (e.key === 'Enter') {
+    } else if (isEnterKey(e)) {
       const target = grid[modalFila][modalCol]
       if (target?.tagName === 'SELECT') {
         modoEdicion = true

@@ -13,8 +13,23 @@ export function isBackKey(event) {
   )
 }
 
+/** Códigos OK/Enter en mandos LG (webOS 3–24, simulador incl.). */
 export function isEnterKey(event) {
-  return event.key === 'Enter' || event.key === 'OK' || event.keyCode === 13
+  if (!event) return false
+  const k = event.key || ''
+  const code = event.code || ''
+  const kc = event.keyCode || event.which || 0
+  return (
+    k === 'Enter' ||
+    k === 'OK' ||
+    k === 'Select' ||
+    k === 'NumpadEnter' ||
+    code === 'Enter' ||
+    code === 'NumpadEnter' ||
+    kc === 13 ||
+    kc === 28 ||
+    kc === 16777221
+  )
 }
 
 export function isSelectKey(event) {

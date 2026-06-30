@@ -322,7 +322,8 @@ app.get('/api/providers/:id/catalog', checkProvider, async (req, res) => {
         const filtros = { ...req.query };
         delete filtros.page; 
         const data = await req.provider.getCatalogo(filtros, page);
-        const enriquecidos = await enrichItems(data);
+        const tagged = (data || []).map((it) => ({ ...it, provider: req.provider.id }));
+        const enriquecidos = await enrichItems(tagged);
         res.json(enriquecidos);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -335,7 +336,8 @@ app.get('/api/providers/:id/search', checkProvider, async (req, res) => {
         if (!req.query.q) return res.status(400).json({ error: "Falta el parámetro 'q'" });
         
         const data = await req.provider.buscar(req.query.q, page);
-        const enriquecidos = await enrichItems(data);
+        const tagged = (data || []).map((it) => ({ ...it, provider: req.provider.id }));
+        const enriquecidos = await enrichItems(tagged);
         res.json(enriquecidos);
     } catch (error) {
         res.status(500).json({ error: error.message });

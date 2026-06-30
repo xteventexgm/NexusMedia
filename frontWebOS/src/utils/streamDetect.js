@@ -6,6 +6,7 @@ export function isStreamPlaybackUrl(url) {
   const u = url.toLowerCase()
   return (
     u.includes('.m3u8') ||
+    u.includes('/api/stream/proxy') ||
     u.includes('/stream/proxy') ||
     u.includes('.mp4') ||
     u.includes('.ts') ||

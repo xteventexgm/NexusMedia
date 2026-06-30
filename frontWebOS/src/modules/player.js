@@ -230,6 +230,8 @@ export function initPlayerModule(getCtx) {
       }
       ctx.streamHandle = handle
     } else {
+      videoPlayer.classList.add('hidden')
+      customControls.classList.add('hidden')
       const iframeCtx = {
         iframe: iframePlayer,
         topBar: topBarReproductor,

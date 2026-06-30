@@ -18,6 +18,25 @@ body {
     #08080a;
 }
 
+@layer base {
+  /* webOS 6: los <button> nativos salen blancos/grises sin reset explícito */
+  button {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+  }
+
+  input,
+  select,
+  textarea {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+}
+
 @layer components {
   /* ── Navegación ── */
   .nav-item {
@@ -71,7 +90,11 @@ body {
 
   .media-card__img-wrap {
     @apply relative rounded-md overflow-hidden bg-[#2a2a2a] shadow-lg;
-    @apply ring-1 ring-white/[0.04] transition-all duration-300;
+    @apply ring-1 ring-white/10 transition-all duration-300;
+  }
+
+  .media-card__label {
+    @apply mt-2 text-[13px] font-medium text-gray-300 truncate px-0.5 transition-colors duration-200;
   }
 
   .media-card:hover .media-card__img-wrap,
@@ -106,10 +129,6 @@ body {
   .media-card:hover .media-card__play,
   .media-card.foco-tv .media-card__play {
     @apply scale-100 opacity-100;
-  }
-
-  .media-card__label {
-    @apply mt-2 text-[13px] font-medium text-gray-400 truncate px-0.5 transition-colors duration-200;
   }
 
   .media-card:hover .media-card__label,
@@ -281,7 +300,8 @@ body {
 
   .ep-row {
     @apply relative flex items-center gap-4 w-full text-left rounded-md px-3 py-3;
-    @apply border border-transparent transition-all duration-200 text-white;
+    @apply border border-white/10 transition-all duration-200 text-white;
+    background-color: rgba(255, 255, 255, 0.04);
     @apply hover:bg-white/[0.06];
   }
 
@@ -510,7 +530,7 @@ body {
 }
 
 .carousel-item-wrap {
-  padding: 10px 6px;
+  padding: 10px 8px;
   box-sizing: content-box;
 }
 
@@ -1013,4 +1033,35 @@ input[type='range']::-moz-range-thumb {
   100% {
     transform: translateX(320%);
   }
+}
+
+/* ── TV en vivo (webOS 6: fondos sin depender de :hover) ── */
+.tv-cat {
+  background-color: transparent;
+  color: rgba(209, 213, 219, 1);
+}
+
+.tv-cat.bg-sky-500\/15,
+.tv-cat.tv-foco {
+  background-color: rgba(14, 165, 233, 0.12);
+  color: #fff;
+}
+
+.tv-canal {
+  background-color: #141418;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tv-canal.tv-foco {
+  border-color: rgba(56, 189, 248, 0.55);
+}
+
+.filter-select {
+  background-color: #1d1d24;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.extension-chip {
+  background-color: rgba(255, 255, 255, 0.1);
 }
