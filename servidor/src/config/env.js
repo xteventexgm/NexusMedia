@@ -26,5 +26,7 @@ module.exports = {
   doramasFlixTimeoutMs: parseInt(process.env.DORAMASFLIX_TIMEOUT_MS || process.env.HTTP_TIMEOUT_MS || '30000', 10),
   doramasFlixRetries: parseInt(process.env.DORAMASFLIX_RETRIES || '3', 10),
   doramasFlixRelayUrl: process.env.DORAMASFLIX_RELAY_URL || '',
-  doramasFlixRelayKey: process.env.DORAMASFLIX_RELAY_KEY || process.env.DORAMAS_RELAY_KEY || ''
+  doramasFlixRelayKey: process.env.DORAMASFLIX_RELAY_KEY || process.env.DORAMAS_RELAY_KEY || '',
+  embed69RelayUrl: process.env.EMBED69_RELAY_URL || '',
+  embed69RelayKey: process.env.EMBED69_RELAY_KEY || ''
 };

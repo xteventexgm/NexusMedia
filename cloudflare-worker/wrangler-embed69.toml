@@ -1,0 +1,7 @@
+name = "nexus-embed69-relay"
+main = "embed69-worker.js"
+compatibility_date = "2024-01-01"
+
+# Opcional: descomenta y define clave en Cloudflare Dashboard → Settings → Variables
+# [vars]
+# RELAY_KEY = "tu-clave-secreta"

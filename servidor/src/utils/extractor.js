@@ -1,7 +1,5 @@
-const axios = require('axios')
-
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+const { fetchHtml } = require('./httpRelay')
+const { UA } = require('./userAgent')
 
 /**
  * Desempaqueta scripts ofuscados con el algoritmo P.A.C.K.E.R (eval(function(p,a,c,k,e,d){...})).
@@ -73,12 +71,8 @@ async function extraerVideoDirecto(embedUrl, options = {}) {
       console.log('[embed69] URL:', embedUrl)
     }
 
-    const { data: html } = await axios.get(embedUrl, {
-      headers: {
-        'User-Agent': UA,
-        Referer: referer,
-        Accept: '*/*'
-      },
+    const html = await fetchHtml(embedUrl, {
+      referer,
       timeout: options.timeout || 15000
     })
 

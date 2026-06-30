@@ -3,7 +3,9 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const crypto = require("crypto");
 const config = require("../config/env");
-const { extraerVideoDirecto, UA } = require("../utils/extractor");
+const { extraerVideoDirecto } = require("../utils/extractor");
+const { UA } = require("../utils/userAgent");
+const { fetchHtml } = require("../utils/httpRelay");
 
 class PelisplusHD extends ProviderBase {
   constructor() {
@@ -215,16 +217,6 @@ class PelisplusHD extends ProviderBase {
       .replace("https://sblona.com", "https://watchsb.com");
   }
 
-  fixHostsLinks(url) {
-    return url
-      .replace("https://hglink.to", "https://streamwish.to")
-      .replace("https://mivalyo.com", "https://vidhidepro.com")
-      .replace("https://dinisglows.com", "https://vidhidepro.com")
-      .replace("https://dhtpre.com", "https://vidhidepro.com")
-      .replace("https://filemoon.link", "https://filemoon.sx")
-      .replace("https://sblona.com", "https://watchsb.com");
-  }
-
   extraerDataLinkJson(html) {
     const idx = html.indexOf("dataLink = ");
     if (idx === -1) return null;
@@ -259,8 +251,10 @@ class PelisplusHD extends ProviderBase {
   async procesarEmbed69(embedUrl) {
     const servidores = [];
     console.log("[embed69] URL:", embedUrl);
-    const resEmbed = await axios.get(embedUrl, this.httpOpts(this.baseUrl));
-    const embedHtml = resEmbed.data;
+    const embedHtml = await fetchHtml(embedUrl, {
+      referer: this.baseUrl,
+      timeout: config.httpTimeoutMs,
+    });
 
     const challengeMatch = embedHtml.match(/const POW_CHALLENGE = '([^']+)'/);
     const diffMatch = embedHtml.match(/const POW_DIFFICULTY = (\d+)/);
