@@ -232,12 +232,16 @@ function startHlsJs(video, url) {
 /**
  * Un intento de reproducción (sin reintento).
  */
-async function createStreamHandle(video, url) {
-  if (isM3u8Url(url) && supportsNativeHls(video)) {
-    return startNativeHls(video, url)
-  }
-
+async function createStreamHandle(video, url, attemptIndex) {
   if (isM3u8Url(url)) {
+    const tryNativeFirst = supportsNativeHls(video) && attemptIndex === 0
+    if (tryNativeFirst) {
+      try {
+        return await startNativeHls(video, url)
+      } catch (nativeErr) {
+        console.log('[HLS] Nativo falló, probando hls.js', nativeErr)
+      }
+    }
     return startHlsJs(video, url)
   }
 
@@ -276,7 +280,7 @@ export async function attachStream(video, url, callbacks) {
       await resetVideoElement(video)
       await delay(attempt === 0 ? 40 : 180)
 
-      innerHandle = await createStreamHandle(video, url)
+      innerHandle = await createStreamHandle(video, url, attempt)
       console.log('[HLS] Stream adjuntado')
 
       if (onReady) onReady()

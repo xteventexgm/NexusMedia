@@ -162,36 +162,36 @@
     </div>
 
     <!-- ===================== REPRODUCTOR ===================== -->
-    <div id="modal-reproductor" class="fixed inset-0 bg-black z-[60] hidden flex flex-col">
+    <div id="modal-reproductor" class="fixed inset-0 bg-black z-[60] hidden flex flex-col min-h-0 overflow-hidden">
       <div
         id="top-bar-reproductor"
-        class="absolute top-0 w-full p-5 flex justify-between items-center bg-gradient-to-b from-black/90 to-transparent z-50 transition-opacity duration-300"
+        class="absolute top-0 w-full z-50 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-5 py-4 bg-gradient-to-b from-black/90 to-transparent transition-opacity duration-300"
       >
         <button
           id="btn-cerrar-reproductor"
-          class="text-white hover:text-brand text-4xl font-bold drop-shadow-lg leading-none"
+          class="text-white hover:text-brand text-4xl font-bold drop-shadow-lg leading-none shrink-0"
         >
           &times;
         </button>
         <h2
           id="titulo-reproductor"
-          class="text-white font-bold text-lg drop-shadow-md truncate max-w-lg text-center absolute left-1/2 -translate-x-1/2"
+          class="text-white font-bold text-lg drop-shadow-md truncate text-center min-w-0 px-2"
         >
           Reproduciendo...
         </h2>
         <select
           id="selector-servidor"
-          class="bg-zinc-900 text-white p-2 rounded-lg outline-none focus:ring-2 focus:ring-brand cursor-pointer hidden border border-white/10 shadow-lg"
+          class="bg-zinc-900 text-white p-2 rounded-lg outline-none focus:ring-2 focus:ring-brand cursor-pointer hidden border border-white/10 shadow-lg shrink-0 max-w-[11rem] truncate"
         ></select>
       </div>
 
-      <div class="flex-1 flex items-center justify-center bg-black relative w-full h-full">
-        <video id="video-player" class="w-full h-full outline-none hidden object-contain"></video>
-        <iframe id="iframe-player" class="w-full h-full hidden border-none" allowfullscreen></iframe>
+      <div id="player-stage" class="player-stage flex-1 relative w-full min-h-0 overflow-hidden bg-black">
+        <video id="video-player" class="player-media outline-none hidden object-contain"></video>
+        <iframe id="iframe-player" class="player-media hidden border-none" allowfullscreen></iframe>
 
         <p
           id="mensaje-reproductor"
-          class="text-white text-center absolute z-40 hidden bg-black/75 px-6 py-4 rounded-lg drop-shadow-lg font-bold animate-pulse"
+          class="player-message text-white text-center hidden bg-black/75 px-6 py-4 rounded-lg drop-shadow-lg font-bold"
         ></p>
 
         <div

@@ -289,16 +289,42 @@ export function initPlayerModule(getCtx) {
       )
       if (ctx.servidoresActuales.length === 0) throw new Error('No hay servidores')
 
-      // Priorizar Latino / Español / Castellano
+      // Priorizar HLS nativo, luego Latino
       ctx.servidoresActuales.sort((a, b) => {
-        const nameA = (a.server || a.nombre || '').toLowerCase();
-        const nameB = (b.server || b.nombre || '').toLowerCase();
-        
-        const isLatamA = nameA.includes('latam') || nameA.includes('latino') || nameA.includes('español') || nameA.includes('castellano') ? 1 : 0;
-        const isLatamB = nameB.includes('latam') || nameB.includes('latino') || nameB.includes('español') || nameB.includes('castellano') ? 1 : 0;
-        
-        return isLatamB - isLatamA;
-      });
+        const nameA = (a.server || a.nombre || '').toLowerCase()
+        const nameB = (b.server || b.nombre || '').toLowerCase()
+        const urlA = (a.url || '').toLowerCase()
+        const urlB = (b.url || '').toLowerCase()
+
+        const hlsA =
+          nameA.includes('auto-play hls') || urlA.includes('.m3u8') || urlA.includes('/stream/proxy')
+            ? 1
+            : 0
+        const hlsB =
+          nameB.includes('auto-play hls') || urlB.includes('.m3u8') || urlB.includes('/stream/proxy')
+            ? 1
+            : 0
+        if (hlsB !== hlsA) return hlsB - hlsA
+
+        const isLatamA =
+          nameA.includes('latam') ||
+          nameA.includes('latino') ||
+          nameA.includes('español') ||
+          nameA.includes('castellano') ||
+          nameA.includes('[lat]')
+            ? 1
+            : 0
+        const isLatamB =
+          nameB.includes('latam') ||
+          nameB.includes('latino') ||
+          nameB.includes('español') ||
+          nameB.includes('castellano') ||
+          nameB.includes('[lat]')
+            ? 1
+            : 0
+
+        return isLatamB - isLatamA
+      })
 
       mensajeReproductor.classList.add('hidden')
       selectorServidor.innerHTML = ''

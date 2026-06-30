@@ -4,6 +4,12 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./src/config/env');
 const { enrichItems, enrichDetails } = require('./src/utils/tmdb');
+const {
+  isStreamUrl,
+  wrapStreamUrl,
+  rewriteM3u8Playlist,
+  proxyStreamRequest
+} = require('./src/utils/streamProxy');
 
 process.on('uncaughtException', (err) => {
     console.error('[ERROR] uncaughtException:', err?.stack || err);
@@ -385,12 +391,21 @@ app.get('/api/providers/:id/watch', checkProvider, async (req, res) => {
     try {
         if (!req.query.url) return res.status(400).json({ error: "Falta el parámetro 'url'" });
         const raw = await req.provider.getEnlaces(req.query.url);
+        const apiBase = config.nexusPublicUrl || `${req.protocol}://${req.get('host')}`;
         const data = (raw || [])
             .map((s) => ({
                 nombre: s.nombre || s.server || s.name || 'Servidor',
-                url: s.url || s.link || ''
+                url: s.url || s.link || '',
+                referer: s.referer || ''
             }))
-            .filter((s) => s.url);
+            .filter((s) => s.url)
+            .map((s) => {
+                if (!isStreamUrl(s.url)) return { nombre: s.nombre, url: s.url };
+                return {
+                    nombre: s.nombre,
+                    url: wrapStreamUrl(s.url, apiBase, s.referer)
+                };
+            });
         if (!data.length) {
             console.warn(
                 `[/watch] ${req.params.id} sin servidores:`,
@@ -401,6 +416,42 @@ app.get('/api/providers/:id/watch', checkProvider, async (req, res) => {
     } catch (error) {
         console.error(`[/watch] ${req.params.id}:`, error.message);
         res.status(500).json({ error: error.message });
+    }
+});
+
+app.options('/api/stream/proxy', cors(corsOptions));
+app.get('/api/stream/proxy', async (req, res) => {
+    try {
+        const targetUrl = req.query.url;
+        if (!targetUrl) return res.status(400).send('Missing url');
+
+        const referer = req.query.referer || '';
+        const { data, contentType } = await proxyStreamRequest(targetUrl, referer);
+        const isM3u8 =
+            /\.m3u8(\?|$)/i.test(targetUrl) ||
+            /mpegurl|m3u8/i.test(contentType);
+
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        res.setHeader('Cache-Control', 'no-cache');
+
+        if (isM3u8) {
+            const apiBase = config.nexusPublicUrl || `${req.protocol}://${req.get('host')}`;
+            const body = rewriteM3u8Playlist(
+                Buffer.from(data).toString('utf8'),
+                targetUrl,
+                apiBase,
+                referer
+            );
+            res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+            return res.send(body);
+        }
+
+        res.setHeader('Content-Type', contentType || 'application/octet-stream');
+        res.send(data);
+    } catch (error) {
+        console.error('[stream/proxy]', error.message);
+        res.status(502).send('Proxy error');
     }
 });
 

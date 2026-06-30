@@ -300,6 +300,7 @@ class PelisplusHD extends ProviderBase {
               nombre: `Auto-Play HLS [${idioma}]`,
               url: urlReal,
               hls: true,
+              referer: urlReal,
             };
           }
 
@@ -313,6 +314,7 @@ class PelisplusHD extends ProviderBase {
               nombre: `Auto-Play HLS [${idioma}]`,
               url: directo,
               hls: true,
+              referer: urlReal,
             };
           }
 
@@ -335,7 +337,7 @@ class PelisplusHD extends ProviderBase {
     }
 
     servidores.sort((a, b) => (b.hls ? 1 : 0) - (a.hls ? 1 : 0));
-    return servidores.map(({ nombre, url }) => ({ nombre, url }));
+    return servidores.map(({ nombre, url, referer }) => ({ nombre, url, referer }));
   }
 
   async getEnlaces(urlEpisodio) {
@@ -398,6 +400,7 @@ class PelisplusHD extends ProviderBase {
             servidores.unshift({
               nombre: `Auto-Play HLS [${host}]`,
               url: videoReal,
+              referer: url,
             });
           } else {
             servidores.push({
