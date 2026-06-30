@@ -66,15 +66,20 @@ function buscarUrlVideo(texto) {
  * intenta extraer el enlace HLS/MP4 directo para reproducción nativa (autoplay).
  * Devuelve la URL del video o null si no se pudo resolver.
  */
-async function extraerVideoDirecto(embedUrl) {
+async function extraerVideoDirecto(embedUrl, options = {}) {
   try {
+    const referer = options.referer || embedUrl
+    if (options.logEmbed69) {
+      console.log('[embed69] URL:', embedUrl)
+    }
+
     const { data: html } = await axios.get(embedUrl, {
       headers: {
         'User-Agent': UA,
-        Referer: embedUrl,
+        Referer: referer,
         Accept: '*/*'
       },
-      timeout: 15000
+      timeout: options.timeout || 15000
     })
 
     // 1) Streamtape (necesita reconstrucción específica)

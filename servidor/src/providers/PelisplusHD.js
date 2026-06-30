@@ -3,7 +3,7 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const crypto = require("crypto");
 const config = require("../config/env");
-const { extraerVideoDirecto } = require("../utils/extractor");
+const { extraerVideoDirecto, UA } = require("../utils/extractor");
 
 class PelisplusHD extends ProviderBase {
   constructor() {
@@ -215,15 +215,144 @@ class PelisplusHD extends ProviderBase {
       .replace("https://sblona.com", "https://watchsb.com");
   }
 
+  fixHostsLinks(url) {
+    return url
+      .replace("https://hglink.to", "https://streamwish.to")
+      .replace("https://mivalyo.com", "https://vidhidepro.com")
+      .replace("https://dinisglows.com", "https://vidhidepro.com")
+      .replace("https://dhtpre.com", "https://vidhidepro.com")
+      .replace("https://filemoon.link", "https://filemoon.sx")
+      .replace("https://sblona.com", "https://watchsb.com");
+  }
+
+  extraerDataLinkJson(html) {
+    const idx = html.indexOf("dataLink = ");
+    if (idx === -1) return null;
+    const start = html.indexOf("[", idx);
+    if (start === -1) return null;
+    let depth = 0;
+    for (let i = start; i < html.length; i++) {
+      if (html[i] === "[") depth++;
+      else if (html[i] === "]") {
+        depth--;
+        if (depth === 0) return html.slice(start, i + 1);
+      }
+    }
+    return null;
+  }
+
+  esUrlHls(url) {
+    return /\.m3u8(\?|$)/i.test(url) || /\/hls/i.test(url);
+  }
+
+  httpOpts(referer) {
+    return {
+      timeout: config.httpTimeoutMs,
+      headers: {
+        "User-Agent": UA,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        ...(referer ? { Referer: referer } : {}),
+      },
+    };
+  }
+
+  async procesarEmbed69(embedUrl) {
+    const servidores = [];
+    console.log("[embed69] URL:", embedUrl);
+    const resEmbed = await axios.get(embedUrl, this.httpOpts(this.baseUrl));
+    const embedHtml = resEmbed.data;
+
+    const challengeMatch = embedHtml.match(/const POW_CHALLENGE = '([^']+)'/);
+    const diffMatch = embedHtml.match(/const POW_DIFFICULTY = (\d+)/);
+    const saltMatch = embedHtml.match(/const POW_SALT = '([^']+)'/);
+    const dataLinkJson =
+      this.extraerDataLinkJson(embedHtml) ||
+      embedHtml.match(/dataLink = (\[[\s\S]*?\]);/)?.[1];
+
+    if (!challengeMatch || !diffMatch || !saltMatch || !dataLinkJson) {
+      console.warn("[PelisplusHD] embed69: faltan POW o dataLink");
+      return servidores;
+    }
+
+    const aesKey = this.derivarLlaveAes(
+      challengeMatch[1],
+      parseInt(diffMatch[1], 10),
+      saltMatch[1],
+    );
+    if (!aesKey) {
+      console.warn("[PelisplusHD] embed69: PoW sin solución");
+      return servidores;
+    }
+
+    let dataLink;
+    try {
+      dataLink = JSON.parse(dataLinkJson);
+    } catch (e) {
+      console.warn("[PelisplusHD] embed69: JSON inválido", e.message);
+      return servidores;
+    }
+
+    const tareas = [];
+    for (const lang of dataLink) {
+      const idioma = lang.video_language || "Latino";
+      for (const embed of lang.sortedEmbeds || []) {
+        tareas.push(async () => {
+          const linkLimpio = this.desencriptarAES(embed.link, aesKey);
+          if (!linkLimpio) return null;
+
+          const urlReal = this.fixHostsLinks(linkLimpio);
+          if (this.esUrlHls(urlReal)) {
+            return {
+              nombre: `Auto-Play HLS [${idioma}]`,
+              url: urlReal,
+              hls: true,
+            };
+          }
+
+          console.log("[embed69] URL:", urlReal);
+          const directo = await extraerVideoDirecto(urlReal, {
+            referer: embedUrl,
+            timeout: config.httpTimeoutMs,
+          });
+          if (directo) {
+            return {
+              nombre: `Auto-Play HLS [${idioma}]`,
+              url: directo,
+              hls: true,
+            };
+          }
+
+          let host = embed.servername || "Externo";
+          try {
+            host = new URL(urlReal).hostname.split(".")[0];
+          } catch (_) {}
+          return {
+            nombre: `Servidor: ${host} [${idioma}]`,
+            url: urlReal,
+            hls: false,
+          };
+        });
+      }
+    }
+
+    const resultados = await Promise.allSettled(tareas.map((fn) => fn()));
+    for (const r of resultados) {
+      if (r.status === "fulfilled" && r.value) servidores.push(r.value);
+    }
+
+    servidores.sort((a, b) => (b.hls ? 1 : 0) - (a.hls ? 1 : 0));
+    return servidores.map(({ nombre, url }) => ({ nombre, url }));
+  }
+
   async getEnlaces(urlEpisodio) {
     const targetUrl = urlEpisodio.startsWith("http")
       ? urlEpisodio
       : `${this.baseUrl}${urlEpisodio}`;
     const servidores = [];
-    const httpOpts = { timeout: config.httpTimeoutMs };
 
     try {
-      const { data } = await axios.get(targetUrl, httpOpts);
+      console.log("[embed69] URL:", targetUrl);
+      const { data } = await axios.get(targetUrl, this.httpOpts(this.baseUrl));
       const $ = cheerio.load(data);
 
       const scriptHtml =
@@ -233,12 +362,17 @@ class PelisplusHD extends ProviderBase {
       let urlsCrudas = scriptHtml.match(/https?:\/\/[^"'\s<>]+/g) || [];
       urlsCrudas = [...new Set(urlsCrudas)];
 
+      if (!urlsCrudas.length) {
+        console.warn("[PelisplusHD] getEnlaces: sin URLs en var video =");
+      }
+
       for (let i = 0; i < urlsCrudas.length; i++) {
         const url = urlsCrudas[i];
 
         if (url.includes("xupalace") || url.includes("uqlink")) {
           try {
-            const resXu = await axios.get(url, httpOpts);
+            console.log("[embed69] URL:", url);
+            const resXu = await axios.get(url, this.httpOpts(this.baseUrl));
             const matchGoTo = resXu.data.match(
               /(?:go_to_player|go_to_playerVast)\('([^']+)'/,
             );
@@ -251,60 +385,21 @@ class PelisplusHD extends ProviderBase {
           } catch (_) {}
         } else if (url.includes("embed69")) {
           try {
-            const resEmbed = await axios.get(url, httpOpts);
-            const embedHtml = resEmbed.data;
-
-            const challengeMatch = embedHtml.match(
-              /const POW_CHALLENGE = '([^']+)'/,
-            );
-            const diffMatch = embedHtml.match(/const POW_DIFFICULTY = (\d+)/);
-            const saltMatch = embedHtml.match(/const POW_SALT = '([^']+)'/);
-            const dataLinkMatch = embedHtml.match(/dataLink = (\[.*?\]);/);
-
-            if (challengeMatch && diffMatch && saltMatch && dataLinkMatch) {
-              const aesKey = this.derivarLlaveAes(
-                challengeMatch[1],
-                parseInt(diffMatch[1]),
-                saltMatch[1],
-              );
-              if (aesKey) {
-                const dataLink = JSON.parse(dataLinkMatch[1]);
-                for (const lang of dataLink) {
-                  const idioma = lang.video_language || "Latino";
-                  for (const embed of lang.sortedEmbeds || []) {
-                    const linkLimpio = this.desencriptarAES(embed.link, aesKey);
-                    if (!linkLimpio) continue;
-
-                    const urlReal = this.fixHostsLinks(linkLimpio);
-                    const directo = await extraerVideoDirecto(urlReal);
-                    if (directo) {
-                      servidores.unshift({
-                        nombre: `Auto-Play HLS [${idioma}]`,
-                        url: directo,
-                      });
-                    } else {
-                      let host = "Externo";
-                      try {
-                        host = new URL(urlReal).hostname.split(".")[0];
-                      } catch (_) {}
-                      servidores.push({
-                        nombre: `Servidor: ${host} [${idioma}]`,
-                        url: urlReal,
-                      });
-                    }
-                  }
-                }
-              }
-            }
+            const embedServidores = await this.procesarEmbed69(url);
+            servidores.push(...embedServidores);
           } catch (e) {
             console.warn("[PelisplusHD] embed69:", e.message);
           }
-        } else if (/vidhide|streamwish|filemoon|streamtape|strtape|stape/i.test(url)) {
+        } else if (/vidhide|streamwish|filemoon|streamtape|strtape|stape|minochinos/i.test(url)) {
           let host = "Externo";
           try {
             host = new URL(url).hostname.split(".")[0];
           } catch (_) {}
-          const videoReal = await extraerVideoDirecto(url);
+          console.log("[embed69] URL:", url);
+          const videoReal = await extraerVideoDirecto(url, {
+            referer: this.baseUrl,
+            timeout: config.httpTimeoutMs,
+          });
           if (videoReal) {
             servidores.unshift({
               nombre: `Auto-Play HLS [${host}]`,
